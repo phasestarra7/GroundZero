@@ -1,0 +1,11 @@
+name: GroundZero
+main: net.groundzero.app.GroundZero
+version: 1.0-SNAPSHOT
+api-version: '1.21'
+authors: [ 'phasestarr' ]
+
+commands:
+  groundzero:
+    description: GroundZero root command
+    aliases: [ gz ]
+    usage: "/groundzero <start|cancel|test>"
