@@ -32,9 +32,7 @@ public class GameManager {
     // random picker
     private static final Random RNG = new Random();
 
-    public GameManager() {
-        // we pull deps from Core.* (schedulers, notify, ui, etc.)
-    }
+    public GameManager() {}
 
     public GameSession session() {
         return session;
@@ -99,7 +97,6 @@ public class GameManager {
                  COUNTDOWN_BEFORE_START -> {
                 // broadcast error + sound
                 Core.notify.broadcastToAllError(Sound.BLOCK_ANVIL_LAND, Notifier.PitchLevel.LOW, "GroundZero cancelled by " + (p != null ? p.getDisplayName() : "server"));
-                Core.notify.soundToAll(Sound.BLOCK_ANVIL_LAND, Notifier.PitchLevel.LOW);
                 cancelAll();
             }
             case RUNNING,
