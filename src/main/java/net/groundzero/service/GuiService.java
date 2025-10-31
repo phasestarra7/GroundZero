@@ -133,7 +133,7 @@ public final class GuiService {
         }
         invMapSize.setItem(26, cancelItem()); // barrier 유지
         Core.game.forEachParticipant(p -> {
-            p.playSound(p.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, Notifier.PitchLevel.MID.v);
+            Core.notify.sound(p, Sound.UI_BUTTON_CLICK, Notifier.PitchLevel.MID);
         });
     }
 

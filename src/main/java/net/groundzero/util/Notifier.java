@@ -1,8 +1,12 @@
 package net.groundzero.util;
 
 import net.groundzero.app.Core;
+import org.bukkit.Bukkit;
 import org.bukkit.Sound;
+import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
+
+import java.util.UUID;
 
 /**
  * Unified messaging & sound helper.
@@ -12,14 +16,11 @@ import org.bukkit.entity.Player;
  */
 public final class Notifier {
 
-    /* ---------- constants ---------- */
-    public static final float PITCH_MSG_OK  = 1.1892f;
-    public static final float PITCH_MSG_ERR = 0.8909f;
-
     public enum PitchLevel {
-        HIGH(1.2599f), MID(1.0000f), LOW(0.7937f);
+        HIGH(1.2599f), MID(1.0000f), LOW(0.7937f), OK(1.1892f), ERR(0.8909f);
         public final float v;
         PitchLevel(float v) { this.v = v; }
+        public float get() { return v; }
     }
 
     private static final char CC = '§';
@@ -33,22 +34,22 @@ public final class Notifier {
     /* ---------- player message (single / varargs) ---------- */
     public void message(Player p, String line) {
         if (p == null || line == null) return;
-        p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_BELL, 1.0f, PITCH_MSG_OK);
+        p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_BELL, 1.0f, PitchLevel.OK.v);
         p.sendMessage(c(PFX_MSG_OK + line));
     }
     public void message(Player p, String... lines) {
         if (p == null || lines == null || lines.length == 0) return;
-        p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_BELL, 1.0f, PITCH_MSG_OK);
+        p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_BELL, 1.0f, PitchLevel.OK.v);
         for (String s : lines) p.sendMessage(c(PFX_MSG_OK + (s == null ? "" : s)));
     }
     public void messageError(Player p, String line) {
         if (p == null || line == null) return;
-        p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_BELL, 1.0f, PITCH_MSG_ERR);
+        p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_BELL, 1.0f, PitchLevel.ERR.v);
         p.sendMessage(c(PFX_MSG_ERR + line));
     }
     public void messageError(Player p, String... lines) {
         if (p == null || lines == null || lines.length == 0) return;
-        p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_BELL, 1.0f, PITCH_MSG_ERR);
+        p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_BELL, 1.0f, PitchLevel.ERR.v);
         for (String s : lines) p.sendMessage(c(PFX_MSG_ERR + (s == null ? "" : s)));
     }
 
@@ -178,5 +179,32 @@ public final class Notifier {
             for (String line : lines)
                 p.sendMessage(c(PFX_BC_ERR + (line == null ? "" : line)));
         });
+    }
+
+    // sounds
+
+    public void sound(Player p, Sound sound, PitchLevel pitch) {
+        if (p == null) return;
+        p.playSound(p.getLocation(), sound, 1.0f, pitch.get());
+    }
+
+    public void sound(UUID id, Sound sound, PitchLevel pitch) {
+        Player p = Bukkit.getPlayer(id);
+        if (p != null && p.isOnline()) {
+            sound(p, sound, pitch);
+        }
+    }
+
+    public void soundToParticipants(Iterable<UUID> participants, Sound sound, PitchLevel pitch) {
+        if (participants == null) return;
+        for (UUID id : participants) {
+            sound(id, sound, pitch);
+        }
+    }
+
+    public void soundToAll(Sound sound, PitchLevel pitch) {
+        for (Player p : Bukkit.getOnlinePlayers()) {
+            sound(p, sound, pitch);
+        }
     }
 }
