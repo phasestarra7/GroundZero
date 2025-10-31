@@ -23,13 +23,12 @@ public final class Notifier {
         public float get() { return v; }
     }
 
-    private static final char CC = '§';
     private static final String PFX_MSG_OK  = "&7GroundZero &f| &f";
     private static final String PFX_MSG_ERR = "&7GroundZero &f| &c";
     private static final String PFX_BC_OK   = "&bGroundZero &f| &f";
     private static final String PFX_BC_ERR  = "&bGroundZero &f| &c";
 
-    private String c(String s) { return s == null ? "" : s.replace('&', CC); }
+    private String c(String s) { return s == null ? "" : s.replace('&', '§'); }
 
     /* ---------- player message (single / varargs) ---------- */
     public void message(Player p, String line) {
@@ -195,16 +194,15 @@ public final class Notifier {
         }
     }
 
-    public void soundToParticipants(Iterable<UUID> participants, Sound sound, PitchLevel pitch) {
-        if (participants == null) return;
-        for (UUID id : participants) {
-            sound(id, sound, pitch);
-        }
+    public void soundToParticipants(Sound sound, PitchLevel pitch) {
+        Core.game.forEachParticipant(p -> {
+            sound(p, sound, pitch);
+        });
     }
 
     public void soundToAll(Sound sound, PitchLevel pitch) {
-        for (Player p : Bukkit.getOnlinePlayers()) {
+        Core.game.forAll(p -> {
             sound(p, sound, pitch);
-        }
+        });
     }
 }

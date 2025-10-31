@@ -132,9 +132,7 @@ public final class GuiService {
             if (!keepSlots.contains(opt.slot)) invMapSize.setItem(opt.slot, null);
         }
         invMapSize.setItem(26, cancelItem()); // barrier 유지
-        Core.game.forEachParticipant(p -> {
-            Core.notify.sound(p, Sound.UI_BUTTON_CLICK, Notifier.PitchLevel.MID);
-        });
+        Core.notify.soundToParticipants(Sound.UI_BUTTON_CLICK, Notifier.PitchLevel.MID);
     }
 
     public void retainOnlyIncome(List<IncomeOption> keep) {
@@ -144,9 +142,7 @@ public final class GuiService {
             if (!keepSlots.contains(opt.slot)) invIncome.setItem(opt.slot, null);
         }
         invIncome.setItem(26, cancelItem());
-        Core.game.forEachParticipant(p -> {
-            p.playSound(p.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, Notifier.PitchLevel.MID.v);
-        });
+        Core.notify.soundToParticipants(Sound.UI_BUTTON_CLICK, Notifier.PitchLevel.MID);
     }
 
     public void retainOnlyGameMode(List<GameModeOption> keep) {
@@ -156,9 +152,7 @@ public final class GuiService {
             if (!keepSlots.contains(opt.slot)) invGameMode.setItem(opt.slot, null);
         }
         invGameMode.setItem(26, cancelItem());
-        Core.game.forEachParticipant(p -> {
-            p.playSound(p.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, Notifier.PitchLevel.MID.v);
-        });
+        Core.notify.soundToParticipants(Sound.UI_BUTTON_CLICK, Notifier.PitchLevel.MID);
     }
 
     /* ----------------------- HIGHLIGHT (selected) ----------------------- */
