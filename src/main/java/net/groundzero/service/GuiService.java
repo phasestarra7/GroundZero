@@ -132,7 +132,9 @@ public final class GuiService {
             if (!keepSlots.contains(opt.slot)) invMapSize.setItem(opt.slot, null);
         }
         invMapSize.setItem(26, cancelItem()); // barrier 유지
-        Core.notify.soundParticipants(Sound.UI_BUTTON_CLICK, Notifier.PitchLevel.MID);
+        Core.game.forEachParticipant(p -> {
+            p.playSound(p.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, Notifier.PitchLevel.MID.v);
+        });
     }
 
     public void retainOnlyIncome(List<IncomeOption> keep) {
@@ -142,7 +144,9 @@ public final class GuiService {
             if (!keepSlots.contains(opt.slot)) invIncome.setItem(opt.slot, null);
         }
         invIncome.setItem(26, cancelItem());
-        Core.notify.soundParticipants(Sound.UI_BUTTON_CLICK, Notifier.PitchLevel.MID);
+        Core.game.forEachParticipant(p -> {
+            p.playSound(p.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, Notifier.PitchLevel.MID.v);
+        });
     }
 
     public void retainOnlyGameMode(List<GameModeOption> keep) {
@@ -152,7 +156,9 @@ public final class GuiService {
             if (!keepSlots.contains(opt.slot)) invGameMode.setItem(opt.slot, null);
         }
         invGameMode.setItem(26, cancelItem());
-        Core.notify.soundParticipants(Sound.UI_BUTTON_CLICK, Notifier.PitchLevel.MID);
+        Core.game.forEachParticipant(p -> {
+            p.playSound(p.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, Notifier.PitchLevel.MID.v);
+        });
     }
 
     /* ----------------------- HIGHLIGHT (selected) ----------------------- */

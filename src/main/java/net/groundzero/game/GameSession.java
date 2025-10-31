@@ -5,9 +5,6 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
 
-import org.bukkit.World;
-import org.bukkit.Location;
-
 import net.groundzero.ui.options.GameModeOption;
 import net.groundzero.ui.options.IncomeOption;
 import net.groundzero.ui.options.MapSizeOption;
@@ -29,17 +26,11 @@ public final class GameSession {
     private final Set<UUID> participants = new HashSet<>();
     private final Set<UUID> spectators = new HashSet<>();
 
-    private World world;
-    private Location center;
-
     /* ===== getters for match options ===== */
     public MapSizeOption mapSize() { return mapSize; }
     public IncomeOption income() { return income; }
     public GameModeOption gameMode() { return gameMode; }
 
-    public MapSizeOption getMapSize() { return mapSize; }
-    public IncomeOption getIncome() { return income; }
-    public GameModeOption getGameMode() { return gameMode; }
     public void setMapSize(MapSizeOption v) { this.mapSize = v; }
     public void setIncome(IncomeOption v) { this.income = v; }
     public void setGameMode(GameModeOption v) { this.gameMode = v; }
@@ -47,8 +38,6 @@ public final class GameSession {
     // ----- read-only views -----
     public Set<UUID> getParticipantsView() { return Collections.unmodifiableSet(participants); }
     public Set<UUID> getSpectatorsView()   { return Collections.unmodifiableSet(spectators); }
-    public World getWorld() { return world; }
-    public Location getCenter() { return center; }
 
     public boolean isParticipant(UUID id)  { return participants.contains(id); }
     public boolean isSpectator(UUID id)    { return spectators.contains(id); }
@@ -92,14 +81,6 @@ public final class GameSession {
     public void purge(UUID id) {
         participants.remove(id);
         spectators.remove(id);
-    }
-
-    public void setWorld(World w) {
-        this.world = w;
-    }
-
-    public void setCenter(Location center) {
-        this.center = center;
     }
 
     @Override public String toString() {

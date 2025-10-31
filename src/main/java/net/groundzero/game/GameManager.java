@@ -7,11 +7,8 @@ import net.groundzero.ui.options.MapSizeOption;
 import net.groundzero.util.Notifier;
 import net.groundzero.util.Schedulers;
 import org.bukkit.Bukkit;
-import org.bukkit.Location;
 import org.bukkit.Sound;
-import org.bukkit.World;
 import org.bukkit.entity.Player;
-import org.bukkit.potion.*;
 
 import java.util.*;
 
@@ -136,27 +133,7 @@ public final class GameManager {
         switch(state) {
             case IDLE -> {
                 session.snapshotParticipantsFromSpectators();
-
-                final World[] worlds = new World[1];
-                final boolean[] ismixed = new boolean[1];
-
-                forEachParticipant(p1 -> {
-                    World w = p1.getWorld();
-                    if (worlds[0] == null) {
-                        worlds[0] = w;
-                    } else if (!worlds[0].getUID().equals(w.getUID())) ismixed[0] = true;
-                });
-
-                if (ismixed[0] || worlds[0] == null) {
-                    if (p != null) return;
-                    else {
-                        notify.broadcastError(Sound.ENTITY_VILLAGER_NO, Notifier.PitchLevel.MID, "All players should be in the same world to start");
-                        return;
-                    }
-                }
-                session.setWorld(worlds[0]);
-
-                notify.broadcast(null, null, "Participants: " + namesOf(session.getParticipantsView()));
+                notify.broadcastToAll(null, null, "Participants: " + namesOf(session.getParticipantsView()));
                 gotoCountdownBeforeVoting(); //broadcast is in here
             }
 
@@ -205,7 +182,7 @@ public final class GameManager {
 
         ui.newMapSize();
         forEachParticipant(p -> {
-            notify.sound(p, Sound.UI_BUTTON_CLICK, Notifier.PitchLevel.MID);
+            p.playSound(p.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, Notifier.PitchLevel.MID.v);
             ui.openMapSize(p);
         });
 
@@ -238,8 +215,6 @@ public final class GameManager {
             session.setMapSize(chosen);
             notify.broadcast(Sound.ENTITY_PLAYER_LEVELUP, Notifier.PitchLevel.MID, "Map size selected : &a" + chosen.label);
 
-            ui.closeALlGZViews();
-
             sched.runLater(this::gotoVotingIncome, 3 * 20L);
         }, 2 * 20L);
     }
@@ -254,7 +229,7 @@ public final class GameManager {
 
         ui.newIncome();
         forEachParticipant(p -> {
-            notify.sound(p, Sound.UI_BUTTON_CLICK, Notifier.PitchLevel.MID);
+            p.playSound(p.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, Notifier.PitchLevel.MID.ordinal());
             ui.openIncome(p);
         });
 
@@ -287,8 +262,6 @@ public final class GameManager {
             session.setIncome(chosen);
             notify.broadcast(Sound.ENTITY_PLAYER_LEVELUP, Notifier.PitchLevel.MID, "Income Multiplier selected : &a" + chosen.label);
 
-            ui.closeALlGZViews();
-
             sched.runLater(this::gotoVotingGameMode, 3 * 20L);
         }, 2 * 20L);
     }
@@ -304,8 +277,8 @@ public final class GameManager {
         ui.closeALlGZViews(); // close income vote
         ui.newGameMode();
         forEachParticipant(p -> {
-            notify.sound(p, Sound.UI_BUTTON_CLICK, Notifier.PitchLevel.MID);
-            ui.openIncome(p);
+            p.playSound(p.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, Notifier.PitchLevel.MID.ordinal());
+            ui.openGameMode(p);
         });
 
         sched.runLater(() -> notify.broadcast(
@@ -337,8 +310,6 @@ public final class GameManager {
             session.setGameMode(chosen);
             notify.broadcast(Sound.ENTITY_PLAYER_LEVELUP, Notifier.PitchLevel.MID, "Game Mode selected : &a" + chosen.label);
 
-            ui.closeALlGZViews();
-
             sched.runLater(this::gotoCountdownBeforeStart, 3 * 20L);
         }, 2 * 20L);
     }
@@ -352,29 +323,13 @@ public final class GameManager {
     private void gotoRunning() {
         state = GameState.RUNNING;
 
-        Location center = computeGameCenter();
-        session.setCenter(center);
-        World w = session.getWorld();
-
-        forEachParticipant(p -> {
-            if (!p.getWorld().getUID().equals(session.getWorld().getUID())) {
-                p.teleport(session.getCenter());
-            }
-            spawnPlayerAtRandomInSquare(p, session.getCenter(), session.getMapSize().size);
-        });
-
-        // TODO : setupScoreboardForParticipants();
-
-        notify.broadcastToAll(
+        notify.broadcast(
                 Sound.ENTITY_ENDER_DRAGON_GROWL,
                 Notifier.PitchLevel.MID,
-                "&9----------------",
-                "GroundZero Start!",
-                "Map Size: &a" + session.mapSize(),
-                "Income: &a" + session.income(),
-                "Game Mode: &a" + session.gameMode(),
-                "&9----------------"
-        );
+                "Match is starting!",
+                "Map Size: " + session.mapSize(),
+                "Income: " + session.income(),
+                "Game Mode: " + session.gameMode());
 
         /* ===================== TODO: real game start =====================
            - Teleport players to battlefield spawn based on map size
@@ -397,10 +352,7 @@ public final class GameManager {
                 mapVotes.get(MapSizeOption.SIZE_200),
                 mapVotes.get(MapSizeOption.SIZE_400)
         );
-        Player p = Bukkit.getPlayer(pid);
-        if (p != null && p.isOnline()) {
-            notify.sound(Bukkit.getPlayer(pid), Sound.UI_BUTTON_CLICK, Notifier.PitchLevel.HIGH);
-        }
+        Bukkit.getPlayer(pid).playSound(Bukkit.getPlayer(pid).getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, Notifier.PitchLevel.HIGH.v);
     }
 
     public void voteIncome(UUID pid, IncomeOption opt) {
@@ -414,10 +366,7 @@ public final class GameManager {
                 incomeVotes.get(IncomeOption.X2_0),
                 incomeVotes.get(IncomeOption.X4_0)
         );
-        Player p = Bukkit.getPlayer(pid);
-        if (p != null && p.isOnline()) {
-            notify.sound(Bukkit.getPlayer(pid), Sound.UI_BUTTON_CLICK, Notifier.PitchLevel.HIGH);
-        }
+        Bukkit.getPlayer(pid).playSound(Bukkit.getPlayer(pid).getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, Notifier.PitchLevel.HIGH.v);
     }
 
     public void voteGameMode(UUID pid, GameModeOption opt) {
@@ -425,78 +374,12 @@ public final class GameManager {
         GameModeOption prev = votedMode.put(pid, opt);
         if (prev != null) modeVotes.put(prev, Math.max(0, modeVotes.get(prev) - 1));
         modeVotes.put(opt, modeVotes.get(opt) + 1);
-        ui.refreshGameModeVotes(
-                modeVotes.get(GameModeOption.STANDARD)
-        );
-        Player p = Bukkit.getPlayer(pid);
-        if (p != null && p.isOnline()) {
-            notify.sound(Bukkit.getPlayer(pid), Sound.UI_BUTTON_CLICK, Notifier.PitchLevel.HIGH);
-        }
+        ui.refreshGameModeVotes(modeVotes.get(GameModeOption.STANDARD));
+        Bukkit.getPlayer(pid).playSound(Bukkit.getPlayer(pid).getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, Notifier.PitchLevel.HIGH.v);
     }
 
     private <T> T pickRandom(java.util.List<T> list) {
         if (list == null || list.isEmpty()) return null;
         return list.get(RNG.nextInt(list.size()));
-    }
-
-    /* =================== Get Center (from GUI) =================== */
-    private Location computeGameCenter(){
-        World w = session.getWorld();
-        if (w == null) {
-            return new Location(Bukkit.getWorlds().get(0), 0, 100, 0); // shouldn't be here btw
-        }
-
-        double[] sum = new double[2];
-        int[] count = new int[1];
-
-        forEachParticipant(p -> {
-            if (!p.getWorld().getUID().equals(w.getUID())) return;
-            Location loc = p.getLocation();
-            sum[0] += loc.getX();
-            sum[1] += loc.getZ();
-            count[0]++;
-        });
-
-        if (count[0] == 0) {
-            Location spawn = w.getSpawnLocation();
-            return new Location(w, spawn.getX(), spawn.getY(), spawn.getZ());
-        }
-        double cx = sum[0] / count[0];
-        double cz = sum[1] / count[0];
-        int cy = w.getHighestBlockYAt((int) Math.floor(cx), (int) Math.floor(cz));
-
-        return new Location(w, cx, cy, cz);
-    }
-
-    /* =================== Spawn Players =================== */
-    private void spawnPlayerAtRandomInSquare(Player p, Location center, int mapSize) {
-        if (p == null || center == null) return;
-        World w = session.getWorld();
-        if (w == null) return;
-
-        // half of the side
-        double half = mapSize / 2.0;
-
-        // random point inside the square
-        double rx = center.getX() + (RNG.nextDouble() * 1.9 - 0.95) * half;
-        double rz = center.getZ() + (RNG.nextDouble() * 1.9 - 0.95) * half;
-
-        // find ground at that x,z
-        int groundY = w.getHighestBlockYAt((int) Math.floor(rx), (int) Math.floor(rz));
-
-        // spawn above ground
-        double spawnY = groundY + 100.0; // you said "+100"
-
-        Location tp = new Location(w, rx, spawnY, rz);
-        p.teleport(tp);
-
-        // give slow falling
-        p.addPotionEffect(new PotionEffect(
-                PotionEffectType.SLOW_FALLING,
-                20 * 10,   // 15 seconds
-                0,
-                false,
-                false
-        ));
     }
 }

@@ -1,8 +1,6 @@
 package net.groundzero.util;
 
 import net.groundzero.app.Core;
-
-import org.bukkit.Bukkit;
 import org.bukkit.Sound;
 import org.bukkit.entity.Player;
 
@@ -180,28 +178,5 @@ public final class Notifier {
             for (String line : lines)
                 p.sendMessage(c(PFX_BC_ERR + (line == null ? "" : line)));
         });
-    }
-
-    // sounds::
-    public void sound(Player player, Sound sound, PitchLevel pitch) {
-        if (pitch == null) {
-            sound(player, sound, PitchLevel.MID);
-        } else {
-            sound(player, sound, pitch);
-        }
-    }
-    public void soundParticipants(Sound sound, PitchLevel pitch) {
-        if (sound == null) return;
-        float p = (pitch == null ? PitchLevel.MID.v : pitch.v);
-        Core.game.forEachParticipant(pl ->
-                pl.playSound(pl.getLocation(), sound, 1.0f, p)
-        );
-    }
-    public void soundAll(Sound sound, PitchLevel pitch) {
-        if (sound == null) return;
-        float p = (pitch == null ? PitchLevel.MID.v : pitch.v);
-        for (Player pl : Bukkit.getOnlinePlayers()) {
-            pl.playSound(pl.getLocation(), sound, 1.0f, p);
-        }
     }
 }

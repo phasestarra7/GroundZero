@@ -20,8 +20,6 @@ public final class Core {
     public static GameManager game;
     public static PlayerService playerService;
 
-    // § \u00A7
-
     private Core() {}
 
     public static void init(Plugin p) {
