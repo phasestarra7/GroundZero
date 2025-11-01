@@ -6,8 +6,6 @@ import org.bukkit.Bukkit;
 import org.bukkit.Sound;
 import org.bukkit.entity.Player;
 
-import java.util.UUID;
-
 /**
  * Handles join/quit and session membership transitions:
  *  - join => spectator
@@ -29,6 +27,6 @@ public final class PlayerService {
     public void onPlayerQuit(Player p) {
         if (p == null) return;
         Core.game.cancelAll();
-        Core.notify.broadcast(Bukkit.getOnlinePlayers(),Sound.BLOCK_ANVIL_LAND, Notifier.PitchLevel.LOW, true, "Player &a" + p + " &chas left", "Terminating GroundZero");
+        Core.notifier.broadcast(Bukkit.getOnlinePlayers(),Sound.BLOCK_ANVIL_LAND, Notifier.PitchLevel.LOW, true, "Player &a" + p + " &chas left", "Terminating GroundZero");
     }
 }

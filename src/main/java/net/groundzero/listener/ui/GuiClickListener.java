@@ -2,7 +2,6 @@ package net.groundzero.listener.ui;
 
 import net.groundzero.app.Core;
 import net.groundzero.listener.BaseListener;
-import net.groundzero.service.GuiService;
 import net.groundzero.ui.MenuType;
 import net.groundzero.ui.holder.GroundZeroMenuHolder;
 import net.groundzero.ui.options.GameModeOption;
@@ -60,7 +59,7 @@ public final class GuiClickListener extends BaseListener implements Listener {
                     // Cancel button is only active in voting menus
                     for (MapSizeOption opt : MapSizeOption.values()) {
                         if (opt.slot == raw) {
-                            Core.votes.voteMapSize(p.getUniqueId(), opt);
+                            Core.voteService.voteMapSize(p.getUniqueId(), opt);
                             break;
                         }
                     }
@@ -73,7 +72,7 @@ public final class GuiClickListener extends BaseListener implements Listener {
                 case INCOME_MULTIPLIER -> {
                     for (IncomeOption opt : IncomeOption.values()) {
                         if (opt.slot == raw) {
-                            Core.votes.voteIncome(p.getUniqueId(), opt);
+                            Core.voteService.voteIncome(p.getUniqueId(), opt);
                             break;
                         }
                     }
@@ -86,7 +85,7 @@ public final class GuiClickListener extends BaseListener implements Listener {
                 case GAME_MODE -> {
                     for (GameModeOption opt : GameModeOption.values()) {
                         if (opt.slot == raw) {
-                            Core.votes.voteGameMode(p.getUniqueId(), opt);
+                            Core.voteService.voteGameMode(p.getUniqueId(), opt);
                             break;
                         }
                     }
@@ -153,13 +152,13 @@ public final class GuiClickListener extends BaseListener implements Listener {
         // Auto-reopen only when voting is active for that specific GUI.
         switch (holder.type()) {
             case MAP_SIZE -> Core.schedulers.runLater(() -> {
-                if (Core.votes.isVotingMapSize()) Core.ui.openMapSize(p);
+                if (Core.voteService.isVotingMapSize()) Core.guiService.openMapSize(p);
             }, 1L);
             case INCOME_MULTIPLIER -> Core.schedulers.runLater(() -> {
-                if (Core.votes.isVotingIncome()) Core.ui.openIncome(p);
+                if (Core.voteService.isVotingIncome()) Core.guiService.openIncome(p);
             }, 1L);
             case GAME_MODE -> Core.schedulers.runLater(() -> {
-                if (Core.votes.isVotingGameMode()) Core.ui.openGameMode(p);
+                if (Core.voteService.isVotingGameMode()) Core.guiService.openGameMode(p);
             }, 1L);
             default -> { /* No auto-reopen for other GUI types */ }
         }

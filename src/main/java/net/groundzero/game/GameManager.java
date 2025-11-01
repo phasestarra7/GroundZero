@@ -1,7 +1,6 @@
 package net.groundzero.game;
 
 import net.groundzero.app.Core;
-import net.groundzero.ui.options.GameModeOption;
 import net.groundzero.ui.options.IncomeOption;
 import net.groundzero.ui.options.MapSizeOption;
 import net.groundzero.util.Notifier;
@@ -50,7 +49,7 @@ public class GameManager {
                 initRuntimeForParticipants();
 
                 if (!captureWorldAndCenterFromParticipants()) {
-                    Core.notify.broadcast(
+                    Core.notifier.broadcast(
                             Bukkit.getOnlinePlayers(),
                             Sound.BLOCK_ANVIL_LAND,
                             Notifier.PitchLevel.LOW,
@@ -62,7 +61,7 @@ public class GameManager {
                     return;
                 }
 
-                Core.notify.broadcast(
+                Core.notifier.broadcast(
                         Bukkit.getOnlinePlayers(),
                         null,
                         null,
@@ -78,12 +77,12 @@ public class GameManager {
                  VOTING_GAME_MODE,
                  COUNTDOWN_BEFORE_START -> {
                 if (p != null) {
-                    Core.notify.messageError(p, "The game is already starting.");
+                    Core.notifier.messageError(p, "The game is already starting.");
                 }
             }
             case RUNNING, ENDED -> {
                 if (p != null) {
-                    Core.notify.messageError(p, "The game is already running.");
+                    Core.notifier.messageError(p, "The game is already running.");
                 }
             }
             default -> {}
@@ -140,7 +139,7 @@ public class GameManager {
         switch (state) {
             case IDLE -> {
                 if (p != null) {
-                    Core.notify.messageError(p, "There is no game starting.");
+                    Core.notifier.messageError(p, "There is no game starting.");
                 }
             }
             case COUNTDOWN_BEFORE_VOTING,
@@ -148,7 +147,7 @@ public class GameManager {
                  VOTING_INCOME_MULTIPLIER,
                  VOTING_GAME_MODE,
                  COUNTDOWN_BEFORE_START -> {
-                Core.notify.broadcast(
+                Core.notifier.broadcast(
                         Bukkit.getOnlinePlayers(),
                         Sound.BLOCK_ANVIL_LAND,
                         Notifier.PitchLevel.LOW,
@@ -159,7 +158,7 @@ public class GameManager {
             }
             case RUNNING, ENDED -> {
                 if (p != null) {
-                    Core.notify.messageError(p, "The game is already running.");
+                    Core.notifier.messageError(p, "The game is already running.");
                 }
             }
             default -> {}
@@ -175,7 +174,7 @@ public class GameManager {
             Core.scoreboardService.clearAll();
         }
 
-        Core.ui.closeAllGZViews();
+        Core.guiService.closeAllGZViews();
 
         session = new GameSession();
 
@@ -210,28 +209,28 @@ public class GameManager {
 
     private void gotoCountdownBeforeVoting() {
         state = GameState.COUNTDOWN_BEFORE_VOTING;
-        Core.votes.startPreVoteCountdown(this::gotoVotingMapSize);
+        Core.voteService.startPreVoteCountdown(this::gotoVotingMapSize);
     }
 
     public void gotoVotingMapSize() {
         state = GameState.VOTING_MAP_SIZE;
-        Core.votes.startMapSizeVote();
+        Core.voteService.startMapSizeVote();
     }
 
     public void gotoVotingIncome() {
         state = GameState.VOTING_INCOME_MULTIPLIER;
-        Core.votes.startIncomeVote();
+        Core.voteService.startIncomeVote();
     }
 
     public void gotoVotingGameMode() {
         state = GameState.VOTING_GAME_MODE;
-        Core.votes.startGameModeVote();
+        Core.voteService.startGameModeVote();
     }
 
     public void gotoCountdownBeforeStart() {
         state = GameState.COUNTDOWN_BEFORE_START;
-        Core.ui.closeAllGZViews();
-        Core.votes.startFinalCountdown(this::gotoRunning);
+        Core.guiService.closeAllGZViews();
+        Core.voteService.startFinalCountdown(this::gotoRunning);
     }
 
     /* =========================================================
@@ -258,7 +257,7 @@ public class GameManager {
             Core.scoreboardService.showGameBoard(session);
         }
 
-        ticksLeft = Core.config.matchDurationTicks;
+        ticksLeft = Core.gameConfig.matchDurationTicks;
         startScoreboardTick();
 
         for (UUID id : session.getParticipantsView()) {
@@ -266,7 +265,7 @@ public class GameManager {
         }
 
         // keep format
-        Core.notify.broadcast(
+        Core.notifier.broadcast(
                 Bukkit.getOnlinePlayers(),
                 Sound.ENTITY_ENDER_DRAGON_GROWL,
                 Notifier.PitchLevel.MID,
@@ -288,7 +287,7 @@ public class GameManager {
         if (chosen == null) return;
         double mul = chosen.multiplier;
         for (UUID id : session.getParticipantsView()) {
-            double perPlayerIncome = Core.config.baseIncomePerSecond * mul;
+            double perPlayerIncome = Core.gameConfig.baseIncomePerSecond * mul;
             session.getIncomeMap().put(id, perPlayerIncome);
         }
     }
@@ -298,7 +297,7 @@ public class GameManager {
        ========================================================= */
 
     public void endGame() {
-        Core.notify.broadcast(
+        Core.notifier.broadcast(
                 Bukkit.getOnlinePlayers(),
                 Sound.UI_TOAST_CHALLENGE_COMPLETE,
                 Notifier.PitchLevel.OK,
@@ -310,7 +309,7 @@ public class GameManager {
         Core.schedulers.cancelAll();
 
         session.restoreOriginalBorder();
-        Core.ui.closeAllGZViews();
+        Core.guiService.closeAllGZViews();
         if (Core.scoreboardService != null) {
             Core.scoreboardService.clearAll();
         }
@@ -338,11 +337,11 @@ public class GameManager {
             for (UUID id : session.getParticipantsView()) {
                 double incomePerSec = (Core.scoreboardService != null)
                         ? Core.scoreboardService.getPerPlayerIncome(session, id)
-                        : Core.config.baseIncomePerSecond;
+                        : Core.gameConfig.baseIncomePerSecond;
 
                 double incomePerTick = incomePerSec / 20.0;
 
-                double current = session.getPlasmaMap().getOrDefault(id, Core.config.basePlasma);
+                double current = session.getPlasmaMap().getOrDefault(id, Core.gameConfig.basePlasma);
                 double next = current + incomePerTick;
                 session.getPlasmaMap().put(id, next);
 
@@ -434,12 +433,12 @@ public class GameManager {
         }
 
         for (UUID id : session.getParticipantsView()) {
-            session.getPlasmaMap().put(id, Core.config.basePlasma);
+            session.getPlasmaMap().put(id, Core.gameConfig.basePlasma);
 
-            double perPlayerIncome = Core.config.baseIncomePerSecond * sessionMul;
+            double perPlayerIncome = Core.gameConfig.baseIncomePerSecond * sessionMul;
             session.getIncomeMap().put(id, perPlayerIncome);
 
-            session.getScoreMap().put(id, Core.config.baseScore);
+            session.getScoreMap().put(id, Core.gameConfig.baseScore);
         }
     }
 }

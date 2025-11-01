@@ -63,16 +63,16 @@ public class ScoreboardService {
      */
     public void showGameBoard(GameSession session) {
         if (session == null) return;
-        int ticksLeft = Core.config.matchDurationTicks;
+        int ticksLeft = Core.gameConfig.matchDurationTicks;
 
         for (UUID id : session.getParticipantsView()) {
             Player p = Bukkit.getPlayer(id);
             if (p == null || !p.isOnline()) continue;
             ensure(p);
 
-            double plasma = session.getPlasmaMap().getOrDefault(id, Core.config.basePlasma);
+            double plasma = session.getPlasmaMap().getOrDefault(id, Core.gameConfig.basePlasma);
             double income = getPerPlayerIncome(session, id);
-            double score  = session.getScoreMap().getOrDefault(id, Core.config.baseScore);
+            double score  = session.getScoreMap().getOrDefault(id, Core.gameConfig.baseScore);
 
             updatePlayer(p, plasma, income, score, ticksLeft);
         }
@@ -87,14 +87,14 @@ public class ScoreboardService {
         if (p == null || !p.isOnline()) return;
         ensure(p);
 
-        double plasma = Core.config.basePlasma;
-        double income = Core.config.baseIncomePerSecond;
-        double score  = Core.config.baseScore;
+        double plasma = Core.gameConfig.basePlasma;
+        double income = Core.gameConfig.baseIncomePerSecond;
+        double score  = Core.gameConfig.baseScore;
 
         if (session != null) {
-            plasma = session.getPlasmaMap().getOrDefault(playerId, Core.config.basePlasma);
+            plasma = session.getPlasmaMap().getOrDefault(playerId, Core.gameConfig.basePlasma);
             income = getPerPlayerIncome(session, playerId);
-            score  = session.getScoreMap().getOrDefault(playerId, Core.config.baseScore);
+            score  = session.getScoreMap().getOrDefault(playerId, Core.gameConfig.baseScore);
         }
 
         updatePlayer(p, plasma, income, score, ticksLeft);
@@ -200,7 +200,7 @@ public class ScoreboardService {
      * otherwise = global base * session income multiplier
      */
     public double getPerPlayerIncome(GameSession session, UUID id) {
-        if (session == null) return Core.config.baseIncomePerSecond;
+        if (session == null) return Core.gameConfig.baseIncomePerSecond;
         // per-player override
         Double perPlayer = session.getIncomeMap().get(id);
         if (perPlayer != null) return perPlayer;
@@ -208,6 +208,6 @@ public class ScoreboardService {
         // session-wide multiplier
         IncomeOption opt = session.income();
         double mul = (opt != null ? opt.multiplier : 1.0);
-        return Core.config.baseIncomePerSecond * mul;
+        return Core.gameConfig.baseIncomePerSecond * mul;
     }
 }
