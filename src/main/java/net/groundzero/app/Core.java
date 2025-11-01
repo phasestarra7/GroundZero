@@ -1,16 +1,15 @@
 package net.groundzero.app;
 
-import net.groundzero.game.GameConfig;
-import net.groundzero.game.GameManager;
+import net.groundzero.game.*;
 import net.groundzero.service.*;
-import net.groundzero.util.Notifier;
-import net.groundzero.util.Schedulers;
+import net.groundzero.util.*;
 import org.bukkit.plugin.Plugin;
 
 public final class Core {
 
     public static Plugin plugin;
     public static GameManager game;
+    public static GameSession session;
 
     public static Schedulers schedulers;
     public static Notifier notifier;

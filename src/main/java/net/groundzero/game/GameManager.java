@@ -1,6 +1,7 @@
 package net.groundzero.game;
 
 import net.groundzero.app.Core;
+import net.groundzero.ui.options.GameModeOption;
 import net.groundzero.ui.options.IncomeOption;
 import net.groundzero.ui.options.MapSizeOption;
 import net.groundzero.util.Notifier;
@@ -11,18 +12,9 @@ import org.bukkit.potion.PotionEffectType;
 
 import java.util.*;
 
-/**
- * Central game flow controller.
- *
- * NOTE:
- * - Voting logic is delegated to VoteService.
- * - We keep method names to show the flow order.
- * - We do NOT use forEachParticipant().
- */
 public class GameManager {
 
-    private GameSession session = new GameSession();
-    private GameState state = GameState.IDLE;
+    private final GameSession session = new GameSession(); // ← now final, we reuse it
 
     private static final Random RNG = new Random();
 
@@ -32,32 +24,25 @@ public class GameManager {
 
     public GameSession session() { return session; }
 
-    public GameState state() { return state; }
-
-    public void setState(GameState s) {
-        this.state = s;
-    }
-
     /* =========================================================
        START
        ========================================================= */
 
     public void start(Player p) {
-        switch (state) {
+        switch (session.state()) {
             case IDLE -> {
                 session.snapshotParticipantsFromSpectators();
                 initRuntimeForParticipants();
 
-                if (!captureWorldAndCenterFromParticipants()) {
+                if (!session.captureWorldAndCenterFromParticipants()) {
                     Core.notifier.broadcast(
                             Bukkit.getOnlinePlayers(),
                             Sound.BLOCK_ANVIL_LAND,
                             Notifier.PitchLevel.LOW,
                             true,
-                            "GroundZero start failed: players are in different worlds."
+                            "GroundZero start failed: players should be in the same world"
                     );
-                    session = new GameSession();
-                    state = GameState.IDLE;
+                    session.setState(GameState.IDLE);
                     return;
                 }
 
@@ -66,7 +51,7 @@ public class GameManager {
                         null,
                         null,
                         false,
-                        "Participants : " + namesOf(session.getParticipantsView())
+                        "Participants : " + session.namesOfParticipants()
                 );
 
                 gotoCountdownBeforeVoting();
@@ -89,54 +74,8 @@ public class GameManager {
         }
     }
 
-    private boolean captureWorldAndCenterFromParticipants() {
-        Set<UUID> participants = session.getParticipantsView();
-        if (participants.isEmpty()) {
-            return false;
-        }
-
-        World commonWorld = null;
-        double sumX = 0;
-        double sumZ = 0;
-        int count = 0;
-
-        for (UUID id : participants) {
-            Player pp = Bukkit.getPlayer(id);
-            if (pp == null || !pp.isOnline()) continue;
-
-            Location loc = pp.getLocation();
-            if (commonWorld == null) {
-                commonWorld = loc.getWorld();
-            } else {
-                if (!commonWorld.equals(loc.getWorld())) {
-                    return false;
-                }
-            }
-
-            sumX += loc.getX();
-            sumZ += loc.getZ();
-            count++;
-        }
-
-        if (commonWorld == null || count == 0) {
-            return false;
-        }
-
-        double avgX = sumX / count;
-        double avgZ = sumZ / count;
-
-        int highestY = commonWorld.getHighestBlockYAt((int) Math.floor(avgX), (int) Math.floor(avgZ));
-        Location center = new Location(commonWorld, avgX, highestY, avgZ);
-
-        session.setWorld(commonWorld);
-        session.setCenter(center);
-        session.captureOriginalBorder(commonWorld);
-
-        return true;
-    }
-
     public void cancel(Player p) {
-        switch (state) {
+        switch (session.state()) {
             case IDLE -> {
                 if (p != null) {
                     Core.notifier.messageError(p, "There is no game starting.");
@@ -166,7 +105,7 @@ public class GameManager {
     }
 
     public void cancelAll() {
-        state = GameState.IDLE;
+        session.setState(GameState.IDLE);
 
         session.restoreOriginalBorder();
         Core.schedulers.cancelAll();
@@ -176,8 +115,7 @@ public class GameManager {
 
         Core.guiService.closeAllGZViews();
 
-        session = new GameSession();
-
+        // re-add online players as spectators
         Set<UUID> online = new HashSet<>();
         for (Player op : Bukkit.getOnlinePlayers()) {
             online.add(op.getUniqueId());
@@ -186,49 +124,31 @@ public class GameManager {
     }
 
     /* =========================================================
-       display util
-       ========================================================= */
-
-    public String namesOf(Iterable<UUID> ids) {
-        StringBuilder sb = new StringBuilder();
-        boolean first = true;
-        for (UUID id : ids) {
-            Player p = Bukkit.getPlayer(id);
-            if (p == null) continue;
-            if (!first) sb.append(", ");
-            sb.append("§a").append(p.getName()).append("§f");
-            first = false;
-        }
-        if (first) return "";
-        return sb.toString();
-    }
-
-    /* =========================================================
-       Flow skeleton (delegates to VoteService)
+       Flow skeleton (VoteService drives actual vote)
        ========================================================= */
 
     private void gotoCountdownBeforeVoting() {
-        state = GameState.COUNTDOWN_BEFORE_VOTING;
+        session.setState(GameState.COUNTDOWN_BEFORE_VOTING);
         Core.voteService.startPreVoteCountdown(this::gotoVotingMapSize);
     }
 
     public void gotoVotingMapSize() {
-        state = GameState.VOTING_MAP_SIZE;
+        session.setState(GameState.VOTING_MAP_SIZE);
         Core.voteService.startMapSizeVote();
     }
 
     public void gotoVotingIncome() {
-        state = GameState.VOTING_INCOME_MULTIPLIER;
+        session.setState(GameState.VOTING_INCOME_MULTIPLIER);
         Core.voteService.startIncomeVote();
     }
 
     public void gotoVotingGameMode() {
-        state = GameState.VOTING_GAME_MODE;
+        session.setState(GameState.VOTING_GAME_MODE);
         Core.voteService.startGameModeVote();
     }
 
     public void gotoCountdownBeforeStart() {
-        state = GameState.COUNTDOWN_BEFORE_START;
+        session.setState(GameState.COUNTDOWN_BEFORE_START);
         Core.guiService.closeAllGZViews();
         Core.voteService.startFinalCountdown(this::gotoRunning);
     }
@@ -238,10 +158,10 @@ public class GameManager {
        ========================================================= */
 
     private void gotoRunning() {
-        state = GameState.RUNNING;
+        session.setState(GameState.RUNNING);
 
-        World w = session.getWorld();
-        Location c = session.getCenter();
+        World w = session.world();
+        Location c = session.center();
         if (w != null && c != null) {
             WorldBorder wb = w.getWorldBorder();
             wb.setCenter(c);
@@ -264,7 +184,6 @@ public class GameManager {
             teleportPlayerRandomly(id);
         }
 
-        // keep format
         Core.notifier.broadcast(
                 Bukkit.getOnlinePlayers(),
                 Sound.ENTITY_ENDER_DRAGON_GROWL,
@@ -279,10 +198,7 @@ public class GameManager {
         );
     }
 
-    /* =========================================================
-       Called by VoteService when an income is chosen
-       ========================================================= */
-
+    /* called from VoteService when income is chosen */
     public void applyIncomeOptionToParticipants(IncomeOption chosen) {
         if (chosen == null) return;
         double mul = chosen.multiplier;
@@ -291,10 +207,6 @@ public class GameManager {
             session.getIncomeMap().put(id, perPlayerIncome);
         }
     }
-
-    /* =========================================================
-       End
-       ========================================================= */
 
     public void endGame() {
         Core.notifier.broadcast(
@@ -305,16 +217,14 @@ public class GameManager {
                 "GroundZero ended."
         );
 
-        // stop all timers (includes per-tick plasma)
         Core.schedulers.cancelAll();
-
         session.restoreOriginalBorder();
         Core.guiService.closeAllGZViews();
         if (Core.scoreboardService != null) {
             Core.scoreboardService.clearAll();
         }
 
-        state = GameState.ENDED;
+        session.setState(GameState.ENDED);
     }
 
     /* =========================================================
@@ -323,7 +233,7 @@ public class GameManager {
 
     private void startScoreboardTick() {
         Core.schedulers.runTimer(() -> {
-            if (state != GameState.RUNNING) {
+            if (session.state() != GameState.RUNNING) {
                 return;
             }
 
@@ -358,8 +268,8 @@ public class GameManager {
        ========================================================= */
 
     private void teleportPlayerRandomly(UUID id) {
-        World world = session.getWorld();
-        Location center = session.getCenter();
+        World world = session.world();
+        Location center = session.center();
         MapSizeOption sizeOpt = session.mapSize();
         if (world == null || center == null || sizeOpt == null) return;
 
@@ -398,7 +308,7 @@ public class GameManager {
     }
 
     private void setUpGameRules() {
-        World w = session.getWorld();
+        World w = session.world();
         if (w == null) return;
 
         w.setGameRule(GameRule.BLOCK_EXPLOSION_DROP_DECAY, false);

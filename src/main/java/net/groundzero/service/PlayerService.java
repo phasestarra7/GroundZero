@@ -19,7 +19,7 @@ public final class PlayerService {
     /** Called from PlayerLifecycleListener.onJoin */
     public void onPlayerJoin(Player p) {
         if (p == null) return;
-        Core.game.session().registerJoinAsSpectator(p.getUniqueId());
+        Core.session.addSpectator(p.getUniqueId());
         //TODO : message diff by current state : e.g) if the game is running: "You joined as spectator!"
     }
 

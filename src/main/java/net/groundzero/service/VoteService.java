@@ -21,7 +21,7 @@ import java.util.*;
  * Voting-only service.
  * - holds vote counts
  * - updates GUI inventories (lore, retain-only, highlight)
- * - drives phase transitions on Core.game
+ * - drives phase transitions on Core
  */
 public final class VoteService {
 
@@ -48,7 +48,7 @@ public final class VoteService {
     }
 
     public void startMapSizeVote() {
-        Core.game.setState(GameState.VOTING_MAP_SIZE);
+        Core.session.setState(GameState.VOTING_MAP_SIZE);
         acceptingVotes = true;
 
         votedMapSize.clear();
@@ -97,7 +97,7 @@ public final class VoteService {
     }
 
     public void startIncomeVote() {
-        Core.game.setState(GameState.VOTING_INCOME_MULTIPLIER);
+        Core.session.setState(GameState.VOTING_INCOME_MULTIPLIER);
         acceptingVotes = true;
 
         votedIncome.clear();
@@ -143,7 +143,7 @@ public final class VoteService {
     }
 
     public void startGameModeVote() {
-        Core.game.setState(GameState.VOTING_GAME_MODE);
+        Core.session.setState(GameState.VOTING_GAME_MODE);
         acceptingVotes = true;
 
         votedMode.clear();
@@ -266,15 +266,15 @@ public final class VoteService {
        ========================================================= */
 
     public boolean isVotingMapSize() {
-        return Core.game.state() == GameState.VOTING_MAP_SIZE;
+        return Core.session.state() == GameState.VOTING_MAP_SIZE;
     }
 
     public boolean isVotingIncome() {
-        return Core.game.state() == GameState.VOTING_INCOME_MULTIPLIER;
+        return Core.session.state() == GameState.VOTING_INCOME_MULTIPLIER;
     }
 
     public boolean isVotingGameMode() {
-        return Core.game.state() == GameState.VOTING_GAME_MODE;
+        return Core.session.state() == GameState.VOTING_GAME_MODE;
     }
 
     /* =========================================================
