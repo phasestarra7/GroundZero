@@ -2,6 +2,7 @@ package net.groundzero.service;
 
 import net.groundzero.app.Core;
 import net.groundzero.util.Notifier;
+import org.bukkit.Bukkit;
 import org.bukkit.Sound;
 import org.bukkit.entity.Player;
 
@@ -28,6 +29,6 @@ public final class PlayerService {
     public void onPlayerQuit(Player p) {
         if (p == null) return;
         Core.game.cancelAll();
-        Core.notify.broadcastToAllError(Sound.BLOCK_ANVIL_LAND, Notifier.PitchLevel.LOW, "Player &a" + p + " &chas left", "Terminating GroundZero");
+        Core.notify.broadcast(Bukkit.getOnlinePlayers(),Sound.BLOCK_ANVIL_LAND, Notifier.PitchLevel.LOW, true, "Player &a" + p + " &chas left", "Terminating GroundZero");
     }
 }

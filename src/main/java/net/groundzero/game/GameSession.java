@@ -1,13 +1,13 @@
 package net.groundzero.game;
 
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
 import net.groundzero.ui.options.GameModeOption;
 import net.groundzero.ui.options.IncomeOption;
 import net.groundzero.ui.options.MapSizeOption;
+import org.bukkit.Location;
+import org.bukkit.World;
+import org.bukkit.WorldBorder;
 
 /**
  * Holds per-match chosen options and runtime player groups.
@@ -26,14 +26,40 @@ public final class GameSession {
     private final Set<UUID> participants = new HashSet<>();
     private final Set<UUID> spectators = new HashSet<>();
 
+    private World world;
+    private Location center;
+
+    // original border info (to restore)
+    private Location originalBorderCenter;
+    private double   originalBorderSize;
+
+    private final Map<UUID, Double> plasma = new HashMap<>();
+    private final Map<UUID, Double> incomes = new HashMap<>();
+    private final Map<UUID, Double> scores = new HashMap<>();
+
+    public GameSession() {}
+
     /* ===== getters for match options ===== */
     public MapSizeOption mapSize() { return mapSize; }
     public IncomeOption income() { return income; }
     public GameModeOption gameMode() { return gameMode; }
+    public World getWorld() { return world; }
+    public Location getCenter() { return center; }
+    public Location getOriginalBorderCenter() { return originalBorderCenter; }
+    public double getOriginalBorderSize() { return originalBorderSize; }
+
+    public Map<UUID, Double> getPlasmaMap() { return plasma; }
+    public Map<UUID, Double> getIncomeMap() { return incomes; }
+    public Map<UUID, Double> getScoresMap() { return scores; }
+
 
     public void setMapSize(MapSizeOption v) { this.mapSize = v; }
     public void setIncome(IncomeOption v) { this.income = v; }
     public void setGameMode(GameModeOption v) { this.gameMode = v; }
+    public void setWorld(World world) { this.world = world; }
+    public void setCenter(Location center) { this.center = center; }
+    public void setOriginalBorderCenter(Location originalBorderCenter) { this.originalBorderCenter = originalBorderCenter; }
+    public void setOriginalBorderSize(double originalBorderSize) { this.originalBorderSize = originalBorderSize; }
 
     // ----- read-only views -----
     public Set<UUID> getParticipantsView() { return Collections.unmodifiableSet(participants); }
@@ -41,6 +67,21 @@ public final class GameSession {
 
     public boolean isParticipant(UUID id)  { return participants.contains(id); }
     public boolean isSpectator(UUID id)    { return spectators.contains(id); }
+
+    public void captureOriginalBorder(World world) {
+        if (world == null) return;
+        WorldBorder wb = world.getWorldBorder();
+        this.originalBorderCenter = wb.getCenter();
+        this.originalBorderSize = wb.getSize();
+    }
+
+    public void restoreOriginalBorder() {
+        if (world == null) return;
+        if (originalBorderCenter == null || originalBorderSize <= 0) return;
+        WorldBorder wb = world.getWorldBorder();
+        wb.setCenter(originalBorderCenter);
+        wb.setSize(originalBorderSize);
+    }
 
     /** Make spectator (side-effect: remove from participants always) */
     public void moveToSpectator(UUID id) {
@@ -60,6 +101,12 @@ public final class GameSession {
     public void snapshotParticipantsFromSpectators() {
         participants.addAll(spectators);
         spectators.clear();
+
+        for (UUID id : participants) {
+            plasma.putIfAbsent(id, 0.0);
+            incomes.putIfAbsent(id, 0.0);
+            scores.putIfAbsent(id, 0.0);
+        }
     }
 
     /** /gz cancel: everyone online → spectator */
@@ -74,13 +121,6 @@ public final class GameSession {
         if (id == null) return;
         participants.remove(id);
         spectators.add(id);
-    }
-
-    /** On quit: remove from all groups */
-    // on quit
-    public void purge(UUID id) {
-        participants.remove(id);
-        spectators.remove(id);
     }
 
     @Override public String toString() {
