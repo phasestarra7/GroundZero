@@ -28,13 +28,16 @@ public final class Core {
 
         plugin = p;
         // main game controller
-        game = new GameManager();
 
+        game = new GameManager();
+        session = game.session();
+
+        // oracle
         schedulers = new Schedulers(p);
         notifier = new Notifier();
         gameConfig = new GameConfig();
 
-        // voting logic (no args, will look up Core.game inside)
+        // services
         voteService = new VoteService();
         guiService = new GuiService();
         playerService = new PlayerService();

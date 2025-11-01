@@ -41,6 +41,8 @@ public class GameSession {
     private final Map<UUID, Double> incomeMap = new HashMap<>();
     private final Map<UUID, Double> scoreMap  = new HashMap<>();
 
+    private int remainingTicks = 0;
+
     /* =========================================================
        getters / setters (1-liner style)
        ========================================================= */
@@ -69,6 +71,9 @@ public class GameSession {
     public Map<UUID, Double> getPlasmaMap(){ return plasmaMap; }
     public Map<UUID, Double> getIncomeMap(){ return incomeMap; }
     public Map<UUID, Double> getScoreMap() { return scoreMap; }
+
+    public int remainingTicks()               { return remainingTicks; }
+    public void setRemainingTicks(int t)      { this.remainingTicks = t; }
 
     /* =========================================================
        participants management

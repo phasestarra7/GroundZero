@@ -1,11 +1,10 @@
 package net.groundzero.game;
 
 import net.groundzero.app.Core;
-import net.groundzero.ui.options.GameModeOption;
-import net.groundzero.ui.options.IncomeOption;
-import net.groundzero.ui.options.MapSizeOption;
+import net.groundzero.ui.options.*;
 import net.groundzero.util.Notifier;
 import org.bukkit.*;
+import org.bukkit.attribute.Attribute;
 import org.bukkit.entity.Player;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
@@ -14,19 +13,14 @@ import java.util.*;
 
 public class GameManager {
 
-    private final GameSession session = new GameSession(); // ← now final, we reuse it
-
+    private final GameSession session = new GameSession();
     private static final Random RNG = new Random();
-
-    private int ticksLeft = 0;
 
     public GameManager() {}
 
     public GameSession session() { return session; }
 
-    /* =========================================================
-       START
-       ========================================================= */
+    /* ===================== start / cancel ===================== */
 
     public void start(Player p) {
         switch (session.state()) {
@@ -36,22 +30,23 @@ public class GameManager {
 
                 if (!session.captureWorldAndCenterFromParticipants()) {
                     Core.notifier.broadcast(
-                            Bukkit.getOnlinePlayers(),
-                            Sound.BLOCK_ANVIL_LAND,
-                            Notifier.PitchLevel.LOW,
-                            true,
-                            "GroundZero start failed: players should be in the same world"
+                        Bukkit.getOnlinePlayers(),
+                        Sound.BLOCK_ANVIL_LAND,
+                        Notifier.PitchLevel.LOW,
+                        true,
+                        "GroundZero start failed",
+                        "All players should be in the same world"
                     );
                     session.setState(GameState.IDLE);
                     return;
                 }
 
                 Core.notifier.broadcast(
-                        Bukkit.getOnlinePlayers(),
-                        null,
-                        null,
-                        false,
-                        "Participants : " + session.namesOfParticipants()
+                    Bukkit.getOnlinePlayers(),
+                    null,
+                    null,
+                    false,
+                    "Participants: " + session.namesOfParticipants()
                 );
 
                 gotoCountdownBeforeVoting();
@@ -87,11 +82,11 @@ public class GameManager {
                  VOTING_GAME_MODE,
                  COUNTDOWN_BEFORE_START -> {
                 Core.notifier.broadcast(
-                        Bukkit.getOnlinePlayers(),
-                        Sound.BLOCK_ANVIL_LAND,
-                        Notifier.PitchLevel.LOW,
-                        true,
-                        "GroundZero cancelled by " + (p != null ? p.getDisplayName() : "server")
+                    Bukkit.getOnlinePlayers(),
+                    Sound.BLOCK_ANVIL_LAND,
+                    Notifier.PitchLevel.LOW,
+                    true,
+                    "GroundZero cancelled by " + (p != null ? p.getDisplayName() : "server")
                 );
                 cancelAll();
             }
@@ -115,7 +110,6 @@ public class GameManager {
 
         Core.guiService.closeAllGZViews();
 
-        // re-add online players as spectators
         Set<UUID> online = new HashSet<>();
         for (Player op : Bukkit.getOnlinePlayers()) {
             online.add(op.getUniqueId());
@@ -123,9 +117,7 @@ public class GameManager {
         session.resetToAllSpectators(online);
     }
 
-    /* =========================================================
-       Flow skeleton (VoteService drives actual vote)
-       ========================================================= */
+    /* ===================== flow skeleton ===================== */
 
     private void gotoCountdownBeforeVoting() {
         session.setState(GameState.COUNTDOWN_BEFORE_VOTING);
@@ -153,9 +145,7 @@ public class GameManager {
         Core.voteService.startFinalCountdown(this::gotoRunning);
     }
 
-    /* =========================================================
-       Running
-       ========================================================= */
+    /* ===================== running ===================== */
 
     private void gotoRunning() {
         session.setState(GameState.RUNNING);
@@ -170,35 +160,40 @@ public class GameManager {
             }
         }
 
-        setUpGameRules();
+        setUpGame();
         Core.loadoutService.giveInitialLoadouts(session.getParticipantsView());
 
         if (Core.scoreboardService != null) {
             Core.scoreboardService.showGameBoard(session);
         }
 
-        ticksLeft = Core.gameConfig.matchDurationTicks;
-        startScoreboardTick();
+        // 여기로 옮김: 남은 시간은 세션이 들고
+        session.setRemainingTicks(Core.gameConfig.matchDurationTicks);
+
+        // 그리고 틱은 스코어보드 서비스가 돌린다
+        if (Core.scoreboardService != null) {
+            Core.scoreboardService.startGameTick(session);
+        }
 
         for (UUID id : session.getParticipantsView()) {
             teleportPlayerRandomly(id);
         }
 
         Core.notifier.broadcast(
-                Bukkit.getOnlinePlayers(),
-                Sound.ENTITY_ENDER_DRAGON_GROWL,
-                Notifier.PitchLevel.MID,
-                false,
-                "&9----------------",
-                "&eGroundZero Start!",
-                "Map Size: &a" + (session.mapSize() != null ? session.mapSize().label : "N/A"),
-                "Income: &a" + (session.income() != null ? session.income().label : "N/A"),
-                "Game Mode: &a" + (session.gameMode() != null ? session.gameMode().label : "N/A"),
-                "&9----------------"
+            Bukkit.getOnlinePlayers(),
+            Sound.ENTITY_ENDER_DRAGON_GROWL,
+            Notifier.PitchLevel.MID,
+            false,
+            "&9----------------",
+            "&eGroundZero Start!",
+            "Map Size: &a" + (session.mapSize() != null ? session.mapSize().label : "N/A"),
+            "Income: &a" + (session.income() != null ? session.income().label : "N/A"),
+            "Game Mode: &a" + (session.gameMode() != null ? session.gameMode().label : "N/A"),
+            "&9----------------"
         );
     }
 
-    /* called from VoteService when income is chosen */
+    /* called from VoteService */
     public void applyIncomeOptionToParticipants(IncomeOption chosen) {
         if (chosen == null) return;
         double mul = chosen.multiplier;
@@ -210,11 +205,11 @@ public class GameManager {
 
     public void endGame() {
         Core.notifier.broadcast(
-                Bukkit.getOnlinePlayers(),
-                Sound.UI_TOAST_CHALLENGE_COMPLETE,
-                Notifier.PitchLevel.OK,
-                false,
-                "GroundZero ended."
+            Bukkit.getOnlinePlayers(),
+            Sound.UI_TOAST_CHALLENGE_COMPLETE,
+            Notifier.PitchLevel.OK,
+            false,
+            "GroundZero ended."
         );
 
         Core.schedulers.cancelAll();
@@ -227,45 +222,7 @@ public class GameManager {
         session.setState(GameState.ENDED);
     }
 
-    /* =========================================================
-       per-tick update
-       ========================================================= */
-
-    private void startScoreboardTick() {
-        Core.schedulers.runTimer(() -> {
-            if (session.state() != GameState.RUNNING) {
-                return;
-            }
-
-            if (ticksLeft > 0) {
-                ticksLeft -= 1;
-            } else {
-                endGame();
-                return;
-            }
-
-            for (UUID id : session.getParticipantsView()) {
-                double incomePerSec = (Core.scoreboardService != null)
-                        ? Core.scoreboardService.getPerPlayerIncome(session, id)
-                        : Core.gameConfig.baseIncomePerSecond;
-
-                double incomePerTick = incomePerSec / 20.0;
-
-                double current = session.getPlasmaMap().getOrDefault(id, Core.gameConfig.basePlasma);
-                double next = current + incomePerTick;
-                session.getPlasmaMap().put(id, next);
-
-                if (Core.scoreboardService != null) {
-                    Core.scoreboardService.refreshFromSession(session, id, ticksLeft);
-                }
-            }
-
-        }, 1L, 1L);
-    }
-
-    /* =========================================================
-       helpers
-       ========================================================= */
+    /* ===================== helpers ===================== */
 
     private void teleportPlayerRandomly(UUID id) {
         World world = session.world();
@@ -298,16 +255,16 @@ public class GameManager {
         p.teleport(dest);
 
         p.addPotionEffect(new PotionEffect(
-                PotionEffectType.SLOW_FALLING,
-                10 * 20,
-                0,
-                false,
-                false,
-                false
+            PotionEffectType.SLOW_FALLING,
+            10 * 20,
+            0,
+            false,
+            false,
+            false
         ));
     }
 
-    private void setUpGameRules() {
+    private void setUpGame() {
         World w = session.world();
         if (w == null) return;
 
@@ -332,6 +289,13 @@ public class GameManager {
             Player p = Bukkit.getPlayer(id);
             if (p == null || !p.isOnline()) continue;
             p.getInventory().clear();
+            p.setExp(0f);
+            p.setLevel(0);
+            p.setTotalExperience(0);
+            p.setFoodLevel(20);
+            p.setSaturation(20f);
+            p.setExhaustion(0f);
+            p.setHealth(p.getAttribute(Attribute.GENERIC_MAX_HEALTH).getValue());
             p.setGameMode(GameMode.SURVIVAL);
         }
     }
