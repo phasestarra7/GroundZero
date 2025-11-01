@@ -7,23 +7,21 @@ import net.groundzero.util.Notifier;
 import net.groundzero.util.Schedulers;
 import org.bukkit.plugin.Plugin;
 
-/**
- * Global access hub for GroundZero.
- * We centralize creation here so other classes can simply use Core.xxx
- * instead of passing dependencies around.
- */
 public final class Core {
 
     public static Plugin plugin;
     public static Schedulers schedulers;
     public static Notifier notify;
+
     public static GuiService ui;
     public static GameConfig config;
     public static GameManager game;
+
     public static PlayerService playerService;
     public static LoadoutService loadoutService;
     public static DamageService damageService;
     public static ScoreboardService scoreboardService;
+    public static VoteService votes;     // ← added
 
     private Core() {}
 
@@ -34,16 +32,15 @@ public final class Core {
         ui = new GuiService();
         config = new GameConfig();
 
-        // GameManager now pulls from Core.* directly
+        // main game controller
         game = new GameManager();
+
+        // voting logic (no args, will look up Core.game inside)
+        votes = new VoteService();
 
         playerService = new PlayerService();
         loadoutService = new LoadoutService();
         damageService = new DamageService();
         scoreboardService = new ScoreboardService();
-    }
-
-    public static void shutdown() {
-        // optional cleanup
     }
 }

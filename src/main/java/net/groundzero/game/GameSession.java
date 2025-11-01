@@ -50,7 +50,7 @@ public final class GameSession {
 
     public Map<UUID, Double> getPlasmaMap() { return plasma; }
     public Map<UUID, Double> getIncomeMap() { return incomes; }
-    public Map<UUID, Double> getScoresMap() { return scores; }
+    public Map<UUID, Double> getScoreMap() { return scores; }
 
 
     public void setMapSize(MapSizeOption v) { this.mapSize = v; }

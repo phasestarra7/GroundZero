@@ -72,7 +72,7 @@ public class ScoreboardService {
 
             double plasma = session.getPlasmaMap().getOrDefault(id, Core.config.basePlasma);
             double income = getPerPlayerIncome(session, id);
-            double score  = session.getScoresMap().getOrDefault(id, Core.config.baseScore);
+            double score  = session.getScoreMap().getOrDefault(id, Core.config.baseScore);
 
             updatePlayer(p, plasma, income, score, ticksLeft);
         }
@@ -88,13 +88,13 @@ public class ScoreboardService {
         ensure(p);
 
         double plasma = Core.config.basePlasma;
-        double income = Core.config.baseIncome;
+        double income = Core.config.baseIncomePerSecond;
         double score  = Core.config.baseScore;
 
         if (session != null) {
             plasma = session.getPlasmaMap().getOrDefault(playerId, Core.config.basePlasma);
             income = getPerPlayerIncome(session, playerId);
-            score  = session.getScoresMap().getOrDefault(playerId, Core.config.baseScore);
+            score  = session.getScoreMap().getOrDefault(playerId, Core.config.baseScore);
         }
 
         updatePlayer(p, plasma, income, score, ticksLeft);
@@ -154,7 +154,7 @@ public class ScoreboardService {
 
         // coords
         Location loc = p.getLocation();
-        String coord = String.format("x: %.1f y: %.1f z: %.1f", loc.getX(), loc.getY(), loc.getZ());
+        String coord = String.format("x: %.2f y: %.2f z: %.2f", loc.getX(), loc.getY(), loc.getZ());
         teams.get("row_coord").setSuffix("§a" + coord);
 
         // plasma
@@ -200,7 +200,7 @@ public class ScoreboardService {
      * otherwise = global base * session income multiplier
      */
     public double getPerPlayerIncome(GameSession session, UUID id) {
-        if (session == null) return Core.config.baseIncome;
+        if (session == null) return Core.config.baseIncomePerSecond;
         // per-player override
         Double perPlayer = session.getIncomeMap().get(id);
         if (perPlayer != null) return perPlayer;
@@ -208,6 +208,6 @@ public class ScoreboardService {
         // session-wide multiplier
         IncomeOption opt = session.income();
         double mul = (opt != null ? opt.multiplier : 1.0);
-        return Core.config.baseIncome * mul;
+        return Core.config.baseIncomePerSecond * mul;
     }
 }

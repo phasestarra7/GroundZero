@@ -33,8 +33,7 @@ public final class GroundZero extends JavaPlugin {
     @Override
     public void onDisable() {
         // Ensure every scheduled task is cancelled and state cleaned
-        Core.game.cancelAll();
-        Core.shutdown();
+        Core.game.cancelAll(); // TODO: cleanup all, force shutdown
         getLogger().info("GroundZero disabled");
     }
 }

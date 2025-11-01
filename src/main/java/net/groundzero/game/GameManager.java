@@ -9,7 +9,6 @@ import org.bukkit.*;
 import org.bukkit.entity.Player;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
-import org.bukkit.scheduler.BukkitTask;
 
 import java.util.*;
 
@@ -17,26 +16,14 @@ import java.util.*;
  * Central game flow controller.
  *
  * NOTE:
- * - We do NOT have forEachParticipant()/forAll() helpers here anymore.
- * - Everywhere we need to tell players, we pass either:
- *      * session.getParticipantsView()
- *      * Bukkit.getOnlinePlayers()
- *   into Core.notify (which now accepts iterables).
- * - Core.ui.closeAllGZViews() is used (typo fixed).
+ * - Voting logic is delegated to VoteService.
+ * - We keep method names to show the flow order.
+ * - We do NOT use forEachParticipant().
  */
 public class GameManager {
 
     private GameSession session = new GameSession();
     private GameState state = GameState.IDLE;
-    private boolean acceptingVotes = false;
-
-    private final Map<MapSizeOption, Integer> mapVotes = new EnumMap<>(MapSizeOption.class);
-    private final Map<IncomeOption, Integer> incomeVotes = new EnumMap<>(IncomeOption.class);
-    private final Map<GameModeOption, Integer> modeVotes = new EnumMap<>(GameModeOption.class);
-
-    private final Map<UUID, MapSizeOption> votedMapSize = new HashMap<>();
-    private final Map<UUID, IncomeOption> votedIncome = new HashMap<>();
-    private final Map<UUID, GameModeOption> votedMode = new HashMap<>();
 
     private static final Random RNG = new Random();
 
@@ -48,6 +35,10 @@ public class GameManager {
 
     public GameState state() { return state; }
 
+    public void setState(GameState s) {
+        this.state = s;
+    }
+
     /* =========================================================
        START
        ========================================================= */
@@ -55,12 +46,10 @@ public class GameManager {
     public void start(Player p) {
         switch (state) {
             case IDLE -> {
-                // take current spectators → participants
                 session.snapshotParticipantsFromSpectators();
                 initRuntimeForParticipants();
 
                 if (!captureWorldAndCenterFromParticipants()) {
-                    // fail → cancel
                     Core.notify.broadcast(
                             Bukkit.getOnlinePlayers(),
                             Sound.BLOCK_ANVIL_LAND,
@@ -68,18 +57,17 @@ public class GameManager {
                             true,
                             "GroundZero start failed: players are in different worlds."
                     );
-                    // go back to idle state
-                    session = new GameSession(); // clean
+                    session = new GameSession();
+                    state = GameState.IDLE;
                     return;
                 }
 
-                // tell everyone online who is playing
                 Core.notify.broadcast(
                         Bukkit.getOnlinePlayers(),
                         null,
                         null,
                         false,
-                        "Participants: " + namesOf(session.getParticipantsView())
+                        "Participants : " + namesOf(session.getParticipantsView())
                 );
 
                 gotoCountdownBeforeVoting();
@@ -105,7 +93,6 @@ public class GameManager {
     private boolean captureWorldAndCenterFromParticipants() {
         Set<UUID> participants = session.getParticipantsView();
         if (participants.isEmpty()) {
-            // no participants? treat as fail
             return false;
         }
 
@@ -122,7 +109,6 @@ public class GameManager {
             if (commonWorld == null) {
                 commonWorld = loc.getWorld();
             } else {
-                // different world → fail
                 if (!commonWorld.equals(loc.getWorld())) {
                     return false;
                 }
@@ -137,19 +123,14 @@ public class GameManager {
             return false;
         }
 
-        // average
         double avgX = sumX / count;
         double avgZ = sumZ / count;
 
-        // get highest Y at that x,z
         int highestY = commonWorld.getHighestBlockYAt((int) Math.floor(avgX), (int) Math.floor(avgZ));
         Location center = new Location(commonWorld, avgX, highestY, avgZ);
 
-        // save to session
         session.setWorld(commonWorld);
         session.setCenter(center);
-
-        // save original border (for cancel)
         session.captureOriginalBorder(commonWorld);
 
         return true;
@@ -188,18 +169,16 @@ public class GameManager {
     public void cancelAll() {
         state = GameState.IDLE;
 
-        // stop tasks
         session.restoreOriginalBorder();
         Core.schedulers.cancelAll();
-        Core.scoreboardService.clearAll();
+        if (Core.scoreboardService != null) {
+            Core.scoreboardService.clearAll();
+        }
 
-        // close all GZ inventories
         Core.ui.closeAllGZViews();
 
-        // reset session
         session = new GameSession();
 
-        // re-add online players as spectators
         Set<UUID> online = new HashSet<>();
         for (Player op : Bukkit.getOnlinePlayers()) {
             online.add(op.getUniqueId());
@@ -208,7 +187,7 @@ public class GameManager {
     }
 
     /* =========================================================
-       Util
+       display util
        ========================================================= */
 
     public String namesOf(Iterable<UUID> ids) {
@@ -226,322 +205,38 @@ public class GameManager {
     }
 
     /* =========================================================
-       Phase: countdown before voting
+       Flow skeleton (delegates to VoteService)
        ========================================================= */
 
     private void gotoCountdownBeforeVoting() {
         state = GameState.COUNTDOWN_BEFORE_VOTING;
-        startCountdown(5, this::gotoVotingMapSize);
+        Core.votes.startPreVoteCountdown(this::gotoVotingMapSize);
     }
 
-    private void startCountdown(int seconds, Runnable onDone) {
-        if (seconds <= 0) {
-            Core.schedulers.runLater(onDone, 1L);
-            return;
-        }
-
-        Core.notify.broadcast(
-                session.getParticipantsView(),
-                Sound.BLOCK_NOTE_BLOCK_PLING,
-                Notifier.PitchLevel.MID,
-                false,
-                "GroundZero starting in " + seconds
-        );
-
-        Core.schedulers.runLater(() -> startCountdown(seconds - 1, onDone), 20L);
-    }
-
-    /* =========================================================
-       Phase: MAP SIZE voting
-       ========================================================= */
-
-    private void gotoVotingMapSize() {
+    public void gotoVotingMapSize() {
         state = GameState.VOTING_MAP_SIZE;
-        acceptingVotes = true;
-        votedMapSize.clear();
-        mapVotes.clear();
-        for (MapSizeOption opt : MapSizeOption.values()) {
-            mapVotes.put(opt, 0);
-        }
-
-        Core.ui.newMapSize();
-
-        // open GUI for participants
-        for (UUID id : session.getParticipantsView()) {
-            Player pp = Bukkit.getPlayer(id);
-            if (pp == null || !pp.isOnline()) continue;
-            Core.notify.sound(pp, Sound.UI_BUTTON_CLICK, Notifier.PitchLevel.MID);
-            Core.ui.openMapSize(pp);
-        }
-
-        // 3-2-1 notice
-        Core.schedulers.runLater(() -> Core.notify.broadcast(
-                session.getParticipantsView(),
-                Sound.BLOCK_NOTE_BLOCK_BELL,
-                Notifier.PitchLevel.OK,
-                false,
-                "Ending vote for map size in §a3"
-        ), 7 * 20L);
-
-        Core.schedulers.runLater(() -> Core.notify.broadcast(
-                session.getParticipantsView(),
-                Sound.BLOCK_NOTE_BLOCK_BELL,
-                Notifier.PitchLevel.OK,
-                false,
-                "Ending vote for map size in §a2"
-        ), 8 * 20L);
-
-        Core.schedulers.runLater(() -> Core.notify.broadcast(
-                session.getParticipantsView(),
-                Sound.BLOCK_NOTE_BLOCK_BELL,
-                Notifier.PitchLevel.OK,
-                false,
-                "Ending vote for map size in §a1"
-        ), 9 * 20L);
-
-        Core.schedulers.runLater(this::finishMapSizeVotePhase, 10 * 20L);
+        Core.votes.startMapSizeVote();
     }
 
-    private void finishMapSizeVotePhase() {
-        acceptingVotes = false;
-
-        int max = 0;
-        for (MapSizeOption o : MapSizeOption.values()) {
-            max = Math.max(max, mapVotes.getOrDefault(o, 0));
-        }
-
-        List<MapSizeOption> ties = new ArrayList<>();
-        for (MapSizeOption o : MapSizeOption.values()) {
-            if (mapVotes.getOrDefault(o, 0) == max) {
-                ties.add(o);
-            }
-        }
-
-        // keep only tied options in GUI
-        Core.ui.retainOnlyMapSize(ties);
-
-        // after a short delay, pick one
-        Core.schedulers.runLater(() -> {
-            MapSizeOption chosen = pickRandom(ties);
-            if (chosen != null) {
-                Core.ui.highlightMapSizeSelected(chosen.label, chosen.slot);
-                session.setMapSize(chosen);
-                Core.notify.broadcast(
-                        session.getParticipantsView(),
-                        Sound.ENTITY_PLAYER_LEVELUP,
-                        Notifier.PitchLevel.MID,
-                        false,
-                        "Map size selected : §a" + chosen.label
-                );
-            }
-            Core.schedulers.runLater(this::gotoVotingIncome, 3 * 20L);
-        }, 2 * 20L);
-    }
-
-    /* =========================================================
-       Phase: INCOME voting
-       ========================================================= */
-
-    private void gotoVotingIncome() {
+    public void gotoVotingIncome() {
         state = GameState.VOTING_INCOME_MULTIPLIER;
-        acceptingVotes = true;
-        votedIncome.clear();
-        incomeVotes.clear();
-        for (IncomeOption opt : IncomeOption.values()) {
-            incomeVotes.put(opt, 0);
-        }
-
-        Core.ui.newIncome();
-
-        for (UUID id : session.getParticipantsView()) {
-            Player pp = Bukkit.getPlayer(id);
-            if (pp == null || !pp.isOnline()) continue;
-            Core.notify.sound(pp, Sound.UI_BUTTON_CLICK, Notifier.PitchLevel.MID);
-            Core.ui.openIncome(pp);
-        }
-
-        Core.schedulers.runLater(() -> Core.notify.broadcast(
-                session.getParticipantsView(),
-                Sound.BLOCK_NOTE_BLOCK_BELL,
-                Notifier.PitchLevel.OK,
-                false,
-                "Ending vote for income multiplier in §a3"
-        ), 7 * 20L);
-
-        Core.schedulers.runLater(() -> Core.notify.broadcast(
-                session.getParticipantsView(),
-                Sound.BLOCK_NOTE_BLOCK_BELL,
-                Notifier.PitchLevel.OK,
-                false,
-                "Ending vote for income multiplier in §a2"
-        ), 8 * 20L);
-
-        Core.schedulers.runLater(() -> Core.notify.broadcast(
-                session.getParticipantsView(),
-                Sound.BLOCK_NOTE_BLOCK_BELL,
-                Notifier.PitchLevel.OK,
-                false,
-                "Ending vote for income multiplier in §a1"
-        ), 9 * 20L);
-
-        Core.schedulers.runLater(this::finishIncomeVotePhase, 10 * 20L);
+        Core.votes.startIncomeVote();
     }
 
-    public void endGame() { //TODO : END GAME
-        // notify players (optional)
-        Core.notify.broadcast(
-                Bukkit.getOnlinePlayers(),
-                Sound.UI_TOAST_CHALLENGE_COMPLETE,
-                Notifier.PitchLevel.OK,
-                false,
-                "GroundZero ended."
-        );
-
-        // go back to idle (same idea as cancelAll but without aggressive cancel of tasks, if you want)
-        state = GameState.ENDED;
-
-        // close GUIs
-        // restore border to what it was before start
-        session.restoreOriginalBorder();
-        Core.ui.closeAllGZViews();
-        Core.scoreboardService.clearAll();
-    }
-
-    private void finishIncomeVotePhase() {
-        acceptingVotes = false;
-
-        int max = 0;
-        for (IncomeOption o : IncomeOption.values()) {
-            max = Math.max(max, incomeVotes.getOrDefault(o, 0));
-        }
-
-        List<IncomeOption> ties = new ArrayList<>();
-        for (IncomeOption o : IncomeOption.values()) {
-            if (incomeVotes.getOrDefault(o, 0) == max) {
-                ties.add(o);
-            }
-        }
-
-        Core.ui.retainOnlyIncome(ties);
-
-        Core.schedulers.runLater(() -> {
-            IncomeOption chosen = pickRandom(ties);
-            if (chosen != null) {
-                Core.ui.highlightIncomeSelected(chosen.label, chosen.slot);
-                session.setIncome(chosen);
-                Core.notify.broadcast(
-                        session.getParticipantsView(),
-                        Sound.ENTITY_PLAYER_LEVELUP,
-                        Notifier.PitchLevel.MID,
-                        false,
-                        "Income Multiplier selected : §a" + chosen.label
-                );
-
-                // set income multiplier
-                double newMul = chosen.multiplier;
-                for (UUID id : session.getParticipantsView()) {
-                    double perPlayerIncome = Core.config.baseIncome * newMul;
-                    session.getIncomeMap().put(id, perPlayerIncome);
-                }
-            }
-            Core.schedulers.runLater(this::gotoVotingGameMode, 3 * 20L);
-        }, 2 * 20L);
-    }
-
-    /* =========================================================
-       Phase: GAME MODE voting
-       ========================================================= */
-
-    private void gotoVotingGameMode() {
+    public void gotoVotingGameMode() {
         state = GameState.VOTING_GAME_MODE;
-        acceptingVotes = true;
-        votedMode.clear();
-        modeVotes.clear();
-        for (GameModeOption opt : GameModeOption.values()) {
-            modeVotes.put(opt, 0);
-        }
-
-        // close previous GZ inventories
-        Core.ui.closeAllGZViews();
-        Core.ui.newGameMode();
-
-        for (UUID id : session.getParticipantsView()) {
-            Player pp = Bukkit.getPlayer(id);
-            if (pp == null || !pp.isOnline()) continue;
-            Core.notify.sound(pp, Sound.UI_BUTTON_CLICK, Notifier.PitchLevel.MID);
-            Core.ui.openGameMode(pp);
-        }
-
-        Core.schedulers.runLater(() -> Core.notify.broadcast(
-                session.getParticipantsView(),
-                Sound.BLOCK_NOTE_BLOCK_BELL,
-                Notifier.PitchLevel.OK,
-                false,
-                "Ending vote for game mode in §a3"
-        ), 7 * 20L);
-
-        Core.schedulers.runLater(() -> Core.notify.broadcast(
-                session.getParticipantsView(),
-                Sound.BLOCK_NOTE_BLOCK_BELL,
-                Notifier.PitchLevel.OK,
-                false,
-                "Ending vote for game mode in §a2"
-        ), 8 * 20L);
-
-        Core.schedulers.runLater(() -> Core.notify.broadcast(
-                session.getParticipantsView(),
-                Sound.BLOCK_NOTE_BLOCK_BELL,
-                Notifier.PitchLevel.OK,
-                false,
-                "Ending vote for game mode in §a1"
-        ), 9 * 20L);
-
-        Core.schedulers.runLater(this::finishGameModeVotePhase, 10 * 20L);
+        Core.votes.startGameModeVote();
     }
 
-    private void finishGameModeVotePhase() {
-        acceptingVotes = false;
-
-        int max = 0;
-        for (GameModeOption o : GameModeOption.values()) {
-            max = Math.max(max, modeVotes.getOrDefault(o, 0));
-        }
-
-        List<GameModeOption> ties = new ArrayList<>();
-        for (GameModeOption o : GameModeOption.values()) {
-            if (modeVotes.getOrDefault(o, 0) == max) {
-                ties.add(o);
-            }
-        }
-
-        Core.ui.retainOnlyGameMode(ties);
-
-        Core.schedulers.runLater(() -> {
-            GameModeOption chosen = pickRandom(ties);
-            if (chosen != null) {
-                Core.ui.highlightGameModeSelected(chosen.label, chosen.slot);
-                session.setGameMode(chosen);
-                Core.notify.broadcast(
-                        session.getParticipantsView(),
-                        Sound.ENTITY_PLAYER_LEVELUP,
-                        Notifier.PitchLevel.MID,
-                        false,
-                        "Game Mode selected : §a" + chosen.label
-                );
-            }
-            Core.schedulers.runLater(this::gotoCountdownBeforeStart, 3 * 20L);
-        }, 2 * 20L);
-    }
-
-    /* =========================================================
-       Phase: countdown before start -> running
-       ========================================================= */
-
-    private void gotoCountdownBeforeStart() {
+    public void gotoCountdownBeforeStart() {
         state = GameState.COUNTDOWN_BEFORE_START;
         Core.ui.closeAllGZViews();
-        startCountdown(5, this::gotoRunning);
+        Core.votes.startFinalCountdown(this::gotoRunning);
     }
+
+    /* =========================================================
+       Running
+       ========================================================= */
 
     private void gotoRunning() {
         state = GameState.RUNNING;
@@ -551,12 +246,14 @@ public class GameManager {
         if (w != null && c != null) {
             WorldBorder wb = w.getWorldBorder();
             wb.setCenter(c);
-            wb.setSize(session.mapSize().size);
+            if (session.mapSize() != null) {
+                wb.setSize(session.mapSize().size);
+            }
         }
 
         setUpGameRules();
         Core.loadoutService.giveInitialLoadouts(session.getParticipantsView());
-        // 4) scoreboard show
+
         if (Core.scoreboardService != null) {
             Core.scoreboardService.showGameBoard(session);
         }
@@ -568,6 +265,7 @@ public class GameManager {
             teleportPlayerRandomly(id);
         }
 
+        // keep format
         Core.notify.broadcast(
                 Bukkit.getOnlinePlayers(),
                 Sound.ENTITY_ENDER_DRAGON_GROWL,
@@ -575,91 +273,90 @@ public class GameManager {
                 false,
                 "&9----------------",
                 "&eGroundZero Start!",
-                "Map Size: &a" + session.mapSize().label,
-                "Income: &a" + session.income().label,
-                "Game Mode: &a" + session.gameMode().label,
+                "Map Size: &a" + (session.mapSize() != null ? session.mapSize().label : "N/A"),
+                "Income: &a" + (session.income() != null ? session.income().label : "N/A"),
+                "Game Mode: &a" + (session.gameMode() != null ? session.gameMode().label : "N/A"),
                 "&9----------------"
         );
-
-        // TODO: start real game loop
     }
 
     /* =========================================================
-       Voting entry points (from GUI clicks)
+       Called by VoteService when an income is chosen
        ========================================================= */
 
-    public void voteMapSize(UUID pid, MapSizeOption opt) {
-        if (state != GameState.VOTING_MAP_SIZE || !acceptingVotes || opt == null) return;
-
-        MapSizeOption prev = votedMapSize.put(pid, opt);
-        if (prev != null) {
-            mapVotes.put(prev, Math.max(0, mapVotes.get(prev) - 1));
-        }
-        mapVotes.put(opt, mapVotes.get(opt) + 1);
-
-        Core.ui.refreshMapSizeVotes(
-                mapVotes.get(MapSizeOption.SIZE_50),
-                mapVotes.get(MapSizeOption.SIZE_100),
-                mapVotes.get(MapSizeOption.SIZE_200),
-                mapVotes.get(MapSizeOption.SIZE_400)
-        );
-
-        Player p = Bukkit.getPlayer(pid);
-        if (p != null) {
-            Core.notify.sound(p, Sound.UI_BUTTON_CLICK, Notifier.PitchLevel.HIGH);
-        }
-    }
-
-    public void voteIncome(UUID pid, IncomeOption opt) {
-        if (state != GameState.VOTING_INCOME_MULTIPLIER || !acceptingVotes || opt == null) return;
-
-        IncomeOption prev = votedIncome.put(pid, opt);
-        if (prev != null) {
-            incomeVotes.put(prev, Math.max(0, incomeVotes.get(prev) - 1));
-        }
-        incomeVotes.put(opt, incomeVotes.get(opt) + 1);
-
-        Core.ui.refreshIncomeVotes(
-                incomeVotes.get(IncomeOption.X0_5),
-                incomeVotes.get(IncomeOption.X1_0),
-                incomeVotes.get(IncomeOption.X2_0),
-                incomeVotes.get(IncomeOption.X4_0)
-        );
-
-        Player p = Bukkit.getPlayer(pid);
-        if (p != null) {
-            Core.notify.sound(p, Sound.UI_BUTTON_CLICK, Notifier.PitchLevel.HIGH);
-        }
-    }
-
-    public void voteGameMode(UUID pid, GameModeOption opt) {
-        if (state != GameState.VOTING_GAME_MODE || !acceptingVotes || opt == null) return;
-
-        GameModeOption prev = votedMode.put(pid, opt);
-        if (prev != null) {
-            modeVotes.put(prev, Math.max(0, modeVotes.get(prev) - 1));
-        }
-        modeVotes.put(opt, modeVotes.get(opt) + 1);
-
-        // current UI supports only STANDARD count
-        Core.ui.refreshGameModeVotes(
-                modeVotes.get(GameModeOption.STANDARD)
-        );
-
-        Player p = Bukkit.getPlayer(pid);
-        if (p != null) {
-            Core.notify.sound(p, Sound.UI_BUTTON_CLICK, Notifier.PitchLevel.HIGH);
+    public void applyIncomeOptionToParticipants(IncomeOption chosen) {
+        if (chosen == null) return;
+        double mul = chosen.multiplier;
+        for (UUID id : session.getParticipantsView()) {
+            double perPlayerIncome = Core.config.baseIncomePerSecond * mul;
+            session.getIncomeMap().put(id, perPlayerIncome);
         }
     }
 
     /* =========================================================
-       Helpers
+       End
        ========================================================= */
 
-    private <T> T pickRandom(List<T> list) {
-        if (list == null || list.isEmpty()) return null;
-        return list.get(RNG.nextInt(list.size()));
+    public void endGame() {
+        Core.notify.broadcast(
+                Bukkit.getOnlinePlayers(),
+                Sound.UI_TOAST_CHALLENGE_COMPLETE,
+                Notifier.PitchLevel.OK,
+                false,
+                "GroundZero ended."
+        );
+
+        // stop all timers (includes per-tick plasma)
+        Core.schedulers.cancelAll();
+
+        session.restoreOriginalBorder();
+        Core.ui.closeAllGZViews();
+        if (Core.scoreboardService != null) {
+            Core.scoreboardService.clearAll();
+        }
+
+        state = GameState.ENDED;
     }
+
+    /* =========================================================
+       per-tick update
+       ========================================================= */
+
+    private void startScoreboardTick() {
+        Core.schedulers.runTimer(() -> {
+            if (state != GameState.RUNNING) {
+                return;
+            }
+
+            if (ticksLeft > 0) {
+                ticksLeft -= 1;
+            } else {
+                endGame();
+                return;
+            }
+
+            for (UUID id : session.getParticipantsView()) {
+                double incomePerSec = (Core.scoreboardService != null)
+                        ? Core.scoreboardService.getPerPlayerIncome(session, id)
+                        : Core.config.baseIncomePerSecond;
+
+                double incomePerTick = incomePerSec / 20.0;
+
+                double current = session.getPlasmaMap().getOrDefault(id, Core.config.basePlasma);
+                double next = current + incomePerTick;
+                session.getPlasmaMap().put(id, next);
+
+                if (Core.scoreboardService != null) {
+                    Core.scoreboardService.refreshFromSession(session, id, ticksLeft);
+                }
+            }
+
+        }, 1L, 1L);
+    }
+
+    /* =========================================================
+       helpers
+       ========================================================= */
 
     private void teleportPlayerRandomly(UUID id) {
         World world = session.getWorld();
@@ -731,65 +428,18 @@ public class GameManager {
     }
 
     private void initRuntimeForParticipants() {
-        // session.income() 이 투표 전에 없을 수도 있으니까
-        // 일단 multiplier는 1.0으로 두고, 투표 끝나고 다시 덮어써도 됨
         double sessionMul = 1.0;
         if (session.income() != null) {
             sessionMul = session.income().multiplier;
         }
 
         for (UUID id : session.getParticipantsView()) {
-            // plasma
             session.getPlasmaMap().put(id, Core.config.basePlasma);
 
-            // income: 기본 = baseIncomePerSecond * session multiplier
-            double perPlayerIncome = Core.config.baseIncome * sessionMul;
+            double perPlayerIncome = Core.config.baseIncomePerSecond * sessionMul;
             session.getIncomeMap().put(id, perPlayerIncome);
 
-            // score
-            session.getScoresMap().put(id, Core.config.baseScore);
+            session.getScoreMap().put(id, Core.config.baseScore);
         }
     }
-
-    // GameManager 안
-
-    private void startScoreboardTick() {
-        // every tick
-        Core.schedulers.runTimer(() -> {
-            if (state != GameState.RUNNING) {
-                return;
-            }
-
-            // time goes down 1 tick
-            if (ticksLeft > 0) {
-                ticksLeft -= 1;
-            } else {
-                endGame();
-                return;
-            }
-
-            for (UUID id : session.getParticipantsView()) {
-
-                // 1) per-player income (per second)
-                double incomePerSec = (Core.scoreboardService != null)
-                        ? Core.scoreboardService.getPerPlayerIncome(session, id)
-                        : Core.config.baseIncome;
-
-                // 2) convert to per-tick
-                double incomePerTick = incomePerSec / 20.0;
-
-                // 3) add to plasma
-                double current = session.getPlasmaMap().getOrDefault(id, Core.config.basePlasma);
-                double next = current + incomePerTick;
-                session.getPlasmaMap().put(id, next);
-
-                // 4) refresh sb this tick
-                if (Core.scoreboardService != null) {
-                    Core.scoreboardService.refreshFromSession(session, id, ticksLeft);
-                }
-            }
-
-        }, 1L, 1L); // ← 1 tick delay, 1 tick period
-    }
-
 }

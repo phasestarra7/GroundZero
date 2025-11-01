@@ -60,7 +60,7 @@ public final class GuiClickListener extends BaseListener implements Listener {
                     // Cancel button is only active in voting menus
                     for (MapSizeOption opt : MapSizeOption.values()) {
                         if (opt.slot == raw) {
-                            Core.game.voteMapSize(p.getUniqueId(), opt);
+                            Core.votes.voteMapSize(p.getUniqueId(), opt);
                             break;
                         }
                     }
@@ -73,7 +73,7 @@ public final class GuiClickListener extends BaseListener implements Listener {
                 case INCOME_MULTIPLIER -> {
                     for (IncomeOption opt : IncomeOption.values()) {
                         if (opt.slot == raw) {
-                            Core.game.voteIncome(p.getUniqueId(), opt);
+                            Core.votes.voteIncome(p.getUniqueId(), opt);
                             break;
                         }
                     }
@@ -86,7 +86,7 @@ public final class GuiClickListener extends BaseListener implements Listener {
                 case GAME_MODE -> {
                     for (GameModeOption opt : GameModeOption.values()) {
                         if (opt.slot == raw) {
-                            Core.game.voteGameMode(p.getUniqueId(), opt);
+                            Core.votes.voteGameMode(p.getUniqueId(), opt);
                             break;
                         }
                     }
@@ -153,36 +153,15 @@ public final class GuiClickListener extends BaseListener implements Listener {
         // Auto-reopen only when voting is active for that specific GUI.
         switch (holder.type()) {
             case MAP_SIZE -> Core.schedulers.runLater(() -> {
-                if (isVotingMapSize()) Core.ui.openMapSize(p);
+                if (Core.votes.isVotingMapSize()) Core.ui.openMapSize(p);
             }, 1L);
             case INCOME_MULTIPLIER -> Core.schedulers.runLater(() -> {
-                if (isVotingIncome()) Core.ui.openIncome(p);
+                if (Core.votes.isVotingIncome()) Core.ui.openIncome(p);
             }, 1L);
             case GAME_MODE -> Core.schedulers.runLater(() -> {
-                if (isVotingGameMode()) Core.ui.openGameMode(p);
+                if (Core.votes.isVotingGameMode()) Core.ui.openGameMode(p);
             }, 1L);
             default -> { /* No auto-reopen for other GUI types */ }
         }
-    }
-
-    private boolean isVotingMapSize() {
-        return switch (Core.game.state()) {
-            case VOTING_MAP_SIZE -> true;
-            default -> false;
-        };
-    }
-
-    private boolean isVotingIncome() {
-        return switch (Core.game.state()) {
-            case VOTING_INCOME_MULTIPLIER -> true;
-            default -> false;
-        };
-    }
-
-    private boolean isVotingGameMode() {
-        return switch (Core.game.state()) {
-            case VOTING_GAME_MODE -> true;
-            default -> false;
-        };
     }
 }
