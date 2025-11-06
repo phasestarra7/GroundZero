@@ -66,6 +66,12 @@ public class GameManager {
                 Core.notifier.messageError(sender, "There is no game starting");
             return;
         } else if (st.isPregame()) {
+            Core.notifier.broadcast(
+                    Bukkit.getOnlinePlayers(),
+                    Sound.BLOCK_ANVIL_LAND,
+                    Notifier.PitchLevel.LOW,
+                    true,
+                    "GroundZero canceled by &a" + sender);
             cancel(); // actually performs cleanup
             return;
         }
