@@ -26,9 +26,8 @@ public final class Core {
 
     public static void init(Plugin p) {
 
-        plugin = p;
         // main game controller
-
+        plugin = p;
         game = new GameManager();
         session = game.session();
 

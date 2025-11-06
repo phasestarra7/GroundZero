@@ -12,7 +12,7 @@ public final class AdminCommands {
     public boolean handleTest(CommandSender sender) {
         // Force reset from ANY state (even RUNNING/ENDED)
         Core.notifier.broadcast(Bukkit.getOnlinePlayers(), Sound.BLOCK_ANVIL_LAND, Notifier.PitchLevel.LOW,false,"Admin command handled : Terminating");
-        Core.game.cancelAll();
+        Core.game.forceCancel(null);
         return true;
     }
 }

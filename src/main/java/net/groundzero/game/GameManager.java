@@ -1,7 +1,9 @@
 package net.groundzero.game;
 
 import net.groundzero.app.Core;
-import net.groundzero.ui.options.*;
+import net.groundzero.ui.options.GameModeOption;
+import net.groundzero.ui.options.IncomeOption;
+import net.groundzero.ui.options.MapSizeOption;
 import net.groundzero.util.Notifier;
 import org.bukkit.*;
 import org.bukkit.attribute.Attribute;
@@ -9,115 +11,210 @@ import org.bukkit.entity.Player;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 
-import java.util.*;
+import java.util.HashSet;
+import java.util.Random;
+import java.util.Set;
+import java.util.UUID;
 
+/**
+ * Central game controller.
+ * Start → voting → running → end → IDLE
+ */
 public class GameManager {
 
     private final GameSession session = new GameSession();
     private static final Random RNG = new Random();
 
-    public GameManager() {}
-
+    // getter will be one-liner on your side
     public GameSession session() { return session; }
 
-    /* ===================== start / cancel ===================== */
+    public GameManager() {}
 
-    public void start(Player p) {
-        switch (session.state()) {
-            case IDLE -> {
-                session.snapshotParticipantsFromSpectators();
-                initRuntimeForParticipants();
+    /* =========================================================
+       PUBLIC ENTRYPOINTS
+       ========================================================= */
 
-                if (!session.captureWorldAndCenterFromParticipants()) {
-                    Core.notifier.broadcast(
-                        Bukkit.getOnlinePlayers(),
-                        Sound.BLOCK_ANVIL_LAND,
-                        Notifier.PitchLevel.LOW,
-                        true,
-                        "GroundZero start failed",
-                        "All players should be in the same world"
-                    );
-                    session.setState(GameState.IDLE);
-                    return;
-                }
+    /**
+     * Start the game flow from IDLE.
+     */
+    public void start(Player sender) {
+        GameState st = session.state();
 
-                Core.notifier.broadcast(
-                    Bukkit.getOnlinePlayers(),
-                    null,
-                    null,
-                    false,
-                    "Participants: " + session.namesOfParticipants()
-                );
-
-                gotoCountdownBeforeVoting();
-            }
-            case COUNTDOWN_BEFORE_VOTING,
-                 VOTING_MAP_SIZE,
-                 VOTING_INCOME_MULTIPLIER,
-                 VOTING_GAME_MODE,
-                 COUNTDOWN_BEFORE_START -> {
-                if (p != null) {
-                    Core.notifier.messageError(p, "The game is already starting.");
-                }
-            }
-            case RUNNING, ENDED -> {
-                if (p != null) {
-                    Core.notifier.messageError(p, "The game is already running.");
-                }
-            }
-            default -> {}
+        if (st == GameState.IDLE) {
+            if (sender != null) startFromIdle(sender);
+            return;
+        } else if (st.isPregame()) {
+            if (sender != null)
+                Core.notifier.messageError(sender, "The game is already starting");
+            return;
         }
+
+        if (sender != null)
+            Core.notifier.messageError(sender, "The game is already running");
     }
 
-    public void cancel(Player p) {
-        switch (session.state()) {
-            case IDLE -> {
-                if (p != null) {
-                    Core.notifier.messageError(p, "There is no game starting.");
-                }
-            }
-            case COUNTDOWN_BEFORE_VOTING,
-                 VOTING_MAP_SIZE,
-                 VOTING_INCOME_MULTIPLIER,
-                 VOTING_GAME_MODE,
-                 COUNTDOWN_BEFORE_START -> {
-                Core.notifier.broadcast(
-                    Bukkit.getOnlinePlayers(),
-                    Sound.BLOCK_ANVIL_LAND,
-                    Notifier.PitchLevel.LOW,
-                    true,
-                    "GroundZero cancelled by " + (p != null ? p.getDisplayName() : "server")
-                );
-                cancelAll();
-            }
-            case RUNNING, ENDED -> {
-                if (p != null) {
-                    Core.notifier.messageError(p, "The game is already running.");
-                }
-            }
-            default -> {}
+    /**
+     * Soft cancel: called by player quit / command during pre-game.
+     * If the game is in pregame, we run cancel();
+     * If already running, we just notify "already running".
+     */
+    public void tryCancel(Player sender) {
+        GameState st = session.state();
+
+        if (st == GameState.IDLE) {
+            if (sender != null)
+                Core.notifier.messageError(sender, "There is no game starting");
+            return;
+        } else if (st.isPregame()) {
+            cancel(); // actually performs cleanup
+            return;
         }
+
+        if (sender != null)
+            Core.notifier.messageError(sender, "The game is already running");
     }
 
-    public void cancelAll() {
-        session.setState(GameState.IDLE);
+    /**
+     * Hard cancel: force stop everything regardless of state.
+     * Used by admin command or plugin shutdown.
+     */
+    public void forceCancel(Player sender) {
+        cancel();
+    }
 
-        session.restoreOriginalBorder();
+    /**
+     * Cancel a starting game (pre-game only).
+     * This MUST NOT go through endGame(), because pre-game usually has:
+     * - no scoreboard
+     * - no runtime tick
+     * - only scheduled votes / countdowns
+     */
+    private void cancel() {
+        restoreEnvironmentToDefault();
         Core.schedulers.cancelAll();
-        if (Core.scoreboardService != null) {
+
+        if (Core.scoreboardService != null)
             Core.scoreboardService.clearAll();
-        }
 
         Core.guiService.closeAllGZViews();
-
-        Set<UUID> online = new HashSet<>();
-        for (Player op : Bukkit.getOnlinePlayers()) {
-            online.add(op.getUniqueId());
-        }
-        session.resetToAllSpectators(online);
+        session.setState(GameState.IDLE);
     }
 
-    /* ===================== flow skeleton ===================== */
+    /**
+     * Normal match end — calls forceCancel after delay.
+     */
+    public void endGame() {
+        session.setState(GameState.ENDED);
+        Core.guiService.closeAllGZViews();
+
+        Core.notifier.broadcast(
+                Bukkit.getOnlinePlayers(),
+                Sound.ENTITY_ENDER_DRAGON_GROWL,
+                Notifier.PitchLevel.MID,
+                false,
+                "GroundZero ended."
+        );
+
+        if (Core.plugin != null && Core.plugin.isEnabled())
+            Core.schedulers.runLater(() -> forceCancel(null), 1L);
+        else
+            forceCancel(null);
+    }
+
+    /* =========================================================
+       INTERNAL FLOWS
+       ========================================================= */
+
+    private void startFromIdle(Player sender) {
+        // 1) collect participants
+        session.snapshotParticipantsFromSpectators();
+
+        // 2) init per-player runtime
+        initRuntimeForParticipants();
+
+        // 3) world/center detect
+        if (!session.captureWorldAndCenterFromParticipants()) {
+            Core.notifier.broadcast(
+                Bukkit.getOnlinePlayers(),
+                Sound.BLOCK_ANVIL_LAND,
+                Notifier.PitchLevel.LOW,
+                true,
+                "GroundZero start failed",
+                "All players should be in the same world"
+            );
+            session.setState(GameState.IDLE);
+            return;
+        }
+
+        // 4) announce players
+        Core.notifier.broadcast(
+            Bukkit.getOnlinePlayers(),
+            null,
+            null,
+            false,
+            "Participants: " + session.namesOfParticipants()
+    );
+
+        // 5) go to first phase
+        gotoCountdownBeforeVoting();
+    }
+
+    /**
+     * This is the ONLY place that does full cleanup.
+     * It can be called while plugin is disabling.
+     */
+
+    private void restoreEnvironmentToDefault() {
+        // a) world border back
+        Core.game.session().restoreOriginalBorder();
+
+        // b) players to spectator (your session already knows how)
+        Set<UUID> online = new HashSet<>();
+        for (org.bukkit.entity.Player op : org.bukkit.Bukkit.getOnlinePlayers()) {
+            online.add(op.getUniqueId());
+        }
+        Core.game.session().resetToAllSpectators();
+
+        World w = session.world();
+        if (w == null) return;
+
+        // world rules
+        w.setGameRule(GameRule.BLOCK_EXPLOSION_DROP_DECAY, true);
+        w.setGameRule(GameRule.DISABLE_ELYTRA_MOVEMENT_CHECK, false);
+        w.setGameRule(GameRule.DO_FIRE_TICK, true);
+        w.setGameRule(GameRule.DO_WEATHER_CYCLE, true);
+        w.setGameRule(GameRule.FALL_DAMAGE, true);
+        w.setGameRule(GameRule.KEEP_INVENTORY, false);
+        w.setGameRule(GameRule.MOB_EXPLOSION_DROP_DECAY, true);
+        w.setGameRule(GameRule.PLAYERS_SLEEPING_PERCENTAGE, 100);
+        w.setGameRule(GameRule.SHOW_DEATH_MESSAGES, true);
+        w.setGameRule(GameRule.SPAWN_CHUNK_RADIUS, 2);
+        w.setGameRule(GameRule.SPAWN_RADIUS, 10);
+        w.setGameRule(GameRule.TNT_EXPLOSION_DROP_DECAY, true);
+        w.setTime(0);
+        w.setStorm(false);
+        w.setThundering(false);
+
+        // participants initial state
+        for (UUID id : session.getParticipantsView()) {
+            Player p = Bukkit.getPlayer(id);
+            if (p == null || !p.isOnline()) continue;
+
+            p.getInventory().clear();
+            p.setExp(0f);
+            p.setLevel(0);
+            p.setTotalExperience(0);
+            p.setFoodLevel(20);
+            p.setSaturation(20f);
+            p.setExhaustion(0f);
+            p.setHealth(p.getAttribute(Attribute.GENERIC_MAX_HEALTH).getValue());
+            p.setGameMode(GameMode.SURVIVAL);
+        }
+    }
+
+    /* =========================================================
+       PHASE JUMPS (used by VoteService)
+       ========================================================= */
 
     private void gotoCountdownBeforeVoting() {
         session.setState(GameState.COUNTDOWN_BEFORE_VOTING);
@@ -145,11 +242,14 @@ public class GameManager {
         Core.voteService.startFinalCountdown(this::gotoRunning);
     }
 
-    /* ===================== running ===================== */
+    /* =========================================================
+       RUNNING
+       ========================================================= */
 
     private void gotoRunning() {
         session.setState(GameState.RUNNING);
 
+        // set world border
         World w = session.world();
         Location c = session.center();
         if (w != null && c != null) {
@@ -160,21 +260,26 @@ public class GameManager {
             }
         }
 
+        // setup world / players
         setUpGame();
+
+        // give loadouts
         Core.loadoutService.giveInitialLoadouts(session.getParticipantsView());
 
+        // show scoreboard (exists only from RUNNING)
         if (Core.scoreboardService != null) {
             Core.scoreboardService.showGameBoard(session);
         }
 
-        // 여기로 옮김: 남은 시간은 세션이 들고
+        // set match time
         session.setRemainingTicks(Core.gameConfig.matchDurationTicks);
 
-        // 그리고 틱은 스코어보드 서비스가 돌린다
+        // scoreboard drives runtime (plasma/income/time) and will call endGame()
         if (Core.scoreboardService != null) {
             Core.scoreboardService.startGameTick(session);
         }
 
+        // random spawn inside border
         for (UUID id : session.getParticipantsView()) {
             teleportPlayerRandomly(id);
         }
@@ -193,7 +298,10 @@ public class GameManager {
         );
     }
 
-    /* called from VoteService */
+    /* =========================================================
+       APPLY VOTE OPTIONS
+       ========================================================= */
+
     public void applyIncomeOptionToParticipants(IncomeOption chosen) {
         if (chosen == null) return;
         double mul = chosen.multiplier;
@@ -203,26 +311,61 @@ public class GameManager {
         }
     }
 
-    public void endGame() {
-        Core.notifier.broadcast(
-            Bukkit.getOnlinePlayers(),
-            Sound.UI_TOAST_CHALLENGE_COMPLETE,
-            Notifier.PitchLevel.OK,
-            false,
-            "GroundZero ended."
-        );
+    /* =========================================================
+       HELPERS
+       ========================================================= */
 
-        Core.schedulers.cancelAll();
-        session.restoreOriginalBorder();
-        Core.guiService.closeAllGZViews();
-        if (Core.scoreboardService != null) {
-            Core.scoreboardService.clearAll();
+    private void setUpGame() {
+        World w = session.world();
+        if (w == null) return;
+
+        // world rules
+        w.setGameRule(GameRule.BLOCK_EXPLOSION_DROP_DECAY, false);
+        w.setGameRule(GameRule.DISABLE_ELYTRA_MOVEMENT_CHECK, true);
+        w.setGameRule(GameRule.DO_FIRE_TICK, false);
+        w.setGameRule(GameRule.DO_WEATHER_CYCLE, false);
+        w.setGameRule(GameRule.FALL_DAMAGE, false);
+        w.setGameRule(GameRule.KEEP_INVENTORY, true);
+        w.setGameRule(GameRule.MOB_EXPLOSION_DROP_DECAY, false);
+        w.setGameRule(GameRule.PLAYERS_SLEEPING_PERCENTAGE, 101);
+        w.setGameRule(GameRule.SHOW_DEATH_MESSAGES, false);
+        w.setGameRule(GameRule.SPAWN_CHUNK_RADIUS, 0);
+        w.setGameRule(GameRule.SPAWN_RADIUS, 0);
+        w.setGameRule(GameRule.TNT_EXPLOSION_DROP_DECAY, false);
+        w.setTime(0);
+        w.setStorm(false);
+        w.setThundering(false);
+
+        // participants initial state
+        for (UUID id : session.getParticipantsView()) {
+            Player p = Bukkit.getPlayer(id);
+            if (p == null || !p.isOnline()) continue;
+
+            p.getInventory().clear();
+            p.setExp(0f);
+            p.setLevel(0);
+            p.setTotalExperience(0);
+            p.setFoodLevel(20);
+            p.setSaturation(20f);
+            p.setExhaustion(0f);
+            p.setHealth(p.getAttribute(Attribute.GENERIC_MAX_HEALTH).getValue());
+            p.setGameMode(GameMode.SURVIVAL);
         }
-
-        session.setState(GameState.ENDED);
     }
 
-    /* ===================== helpers ===================== */
+    private void initRuntimeForParticipants() {
+        double sessionMul = 1.0;
+        if (session.income() != null) {
+            sessionMul = session.income().multiplier;
+        }
+
+        for (UUID id : session.getParticipantsView()) {
+            session.getPlasmaMap().put(id, Core.gameConfig.basePlasma);
+            double perPlayerIncome = Core.gameConfig.baseIncomePerSecond * sessionMul;
+            session.getIncomeMap().put(id, perPlayerIncome);
+            session.getScoreMap().put(id, Core.gameConfig.baseScore);
+        }
+    }
 
     private void teleportPlayerRandomly(UUID id) {
         World world = session.world();
@@ -253,66 +396,13 @@ public class GameManager {
         );
 
         p.teleport(dest);
-
         p.addPotionEffect(new PotionEffect(
-            PotionEffectType.SLOW_FALLING,
-            10 * 20,
-            0,
-            false,
-            false,
-            false
+                PotionEffectType.SLOW_FALLING,
+                10 * 20,
+                0,
+                false,
+                false,
+                false
         ));
-    }
-
-    private void setUpGame() {
-        World w = session.world();
-        if (w == null) return;
-
-        w.setGameRule(GameRule.BLOCK_EXPLOSION_DROP_DECAY, false);
-        w.setGameRule(GameRule.DO_FIRE_TICK, false);
-        w.setGameRule(GameRule.DO_WEATHER_CYCLE, false);
-        w.setGameRule(GameRule.FALL_DAMAGE, false);
-        w.setGameRule(GameRule.KEEP_INVENTORY, true);
-        w.setGameRule(GameRule.MOB_EXPLOSION_DROP_DECAY, false);
-        w.setGameRule(GameRule.NATURAL_REGENERATION, false);
-        w.setGameRule(GameRule.PLAYERS_SLEEPING_PERCENTAGE, 101);
-        w.setGameRule(GameRule.SHOW_DEATH_MESSAGES, false);
-        w.setGameRule(GameRule.SPAWN_CHUNK_RADIUS, 0);
-        w.setGameRule(GameRule.SPAWN_RADIUS, 0);
-        w.setGameRule(GameRule.TNT_EXPLOSION_DROP_DECAY, false);
-
-        w.setTime(0);
-        w.setStorm(false);
-        w.setThundering(false);
-
-        for (UUID id : session.getParticipantsView()) {
-            Player p = Bukkit.getPlayer(id);
-            if (p == null || !p.isOnline()) continue;
-            p.getInventory().clear();
-            p.setExp(0f);
-            p.setLevel(0);
-            p.setTotalExperience(0);
-            p.setFoodLevel(20);
-            p.setSaturation(20f);
-            p.setExhaustion(0f);
-            p.setHealth(p.getAttribute(Attribute.GENERIC_MAX_HEALTH).getValue());
-            p.setGameMode(GameMode.SURVIVAL);
-        }
-    }
-
-    private void initRuntimeForParticipants() {
-        double sessionMul = 1.0;
-        if (session.income() != null) {
-            sessionMul = session.income().multiplier;
-        }
-
-        for (UUID id : session.getParticipantsView()) {
-            session.getPlasmaMap().put(id, Core.gameConfig.basePlasma);
-
-            double perPlayerIncome = Core.gameConfig.baseIncomePerSecond * sessionMul;
-            session.getIncomeMap().put(id, perPlayerIncome);
-
-            session.getScoreMap().put(id, Core.gameConfig.baseScore);
-        }
     }
 }

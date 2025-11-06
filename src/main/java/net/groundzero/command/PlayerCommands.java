@@ -9,7 +9,7 @@ public final class PlayerCommands {
 
     public boolean handleStart(CommandSender sender) {
         if (!(sender instanceof Player p)) {
-            sender.sendMessage("§cThis command is only available to players§r");
+            sender.sendMessage("§r§cGroundZero §f| §cThis command is only available to players§r");
             return true; // handled
         }
         Core.game.start(p);  // GameManager decides and notifies
@@ -18,10 +18,10 @@ public final class PlayerCommands {
 
     public boolean handleCancel(CommandSender sender) {
         if (!(sender instanceof Player p)) {
-            sender.sendMessage("§cThis command is only available to players§r");
+            sender.sendMessage("§r§cGroundZero §f| §cThis command is only available to players§r");
             return true;
         }
-        Core.game.cancel(p); // GameManager decides and notifies
+        Core.game.tryCancel(p); // GameManager decides and notifies
         return true;
     }
 }

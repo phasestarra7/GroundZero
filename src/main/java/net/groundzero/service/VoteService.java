@@ -304,11 +304,11 @@ public final class VoteService {
                 highlightMapSizeSelected(chosen.label, chosen.slot);
                 Core.game.session().setMapSize(chosen);
                 Core.notifier.broadcast(
-                        Core.game.session().getParticipantsView(),
-                        Sound.ENTITY_PLAYER_LEVELUP,
-                        Notifier.PitchLevel.MID,
-                        false,
-                        "Map size selected : §a" + chosen.label
+                    Core.game.session().getParticipantsView(),
+                    Sound.ENTITY_PLAYER_LEVELUP,
+                    Notifier.PitchLevel.MID,
+                    false,
+                    "Map size selected : §a" + chosen.label
                 );
             }
             Core.schedulers.runLater(Core.game::gotoVotingIncome, 3 * 20L);

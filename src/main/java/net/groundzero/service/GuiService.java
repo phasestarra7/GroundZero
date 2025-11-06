@@ -32,21 +32,10 @@ public final class GuiService {
 
     /* ----------------------- BUILDERS ----------------------- */
 
-    public void newMapSize() {
-        invMapSize = buildMapSize();
-    }
-
-    public void newIncome() {
-        invIncome = buildIncome();
-    }
-
-    public void newGameMode() {
-        invGameMode = buildGameMode();
-    }
-
-    public void newShop() {
-        invShop = buildShop();
-    }
+    public void newMapSize() { invMapSize = buildMapSize(); }
+    public void newIncome() { invIncome = buildIncome(); }
+    public void newGameMode() { invGameMode = buildGameMode(); }
+    public void newShop() { invShop = buildShop(); }
 
     private Inventory buildMapSize() {
         Inventory inv = createInventory(
@@ -146,21 +135,13 @@ public final class GuiService {
 
     /* ----------------------- OPENERS ----------------------- */
 
-    public void openMapSize(Player p) {
-        p.openInventory(getMapSizeInventory());
-    }
+    public void openMapSize(Player p) { p.openInventory(getMapSizeInventory()); }
 
-    public void openIncome(Player p) {
-        p.openInventory(getIncomeInventory());
-    }
+    public void openIncome(Player p) { p.openInventory(getIncomeInventory()); }
 
-    public void openGameMode(Player p) {
-        p.openInventory(getGameModeInventory());
-    }
+    public void openGameMode(Player p) { p.openInventory(getGameModeInventory()); }
 
-    public void openShop(Player p) {
-        p.openInventory(getShopInventory());
-    }
+    public void openShop(Player p) { p.openInventory(getShopInventory()); }
 
     /* ----------------------- CLOSE ALL GZ VIEWS ----------------------- */
 

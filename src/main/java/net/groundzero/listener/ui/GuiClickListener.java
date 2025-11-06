@@ -64,7 +64,7 @@ public final class GuiClickListener extends BaseListener implements Listener {
                         }
                     }
                     if (raw == 26) {
-                        Core.game.cancel(p);
+                        Core.game.tryCancel(p);
                         p.closeInventory();
                         return;
                     }
@@ -77,7 +77,7 @@ public final class GuiClickListener extends BaseListener implements Listener {
                         }
                     }
                     if (raw == 26) {
-                        Core.game.cancel(p);
+                        Core.game.tryCancel(p);
                         p.closeInventory();
                         return;
                     }
@@ -90,7 +90,7 @@ public final class GuiClickListener extends BaseListener implements Listener {
                         }
                     }
                     if (raw == 26) {
-                        Core.game.cancel(p);
+                        Core.game.tryCancel(p);
                         p.closeInventory();
                         return;
                     }

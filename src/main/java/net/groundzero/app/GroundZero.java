@@ -6,6 +6,7 @@ import net.groundzero.listener.player.ItemInteractionListener;
 import net.groundzero.listener.player.PlayerLifecycleListener;
 import net.groundzero.listener.ui.GuiClickListener;
 import net.groundzero.listener.world.WorldProtectionListener;
+import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public final class GroundZero extends JavaPlugin {
@@ -15,6 +16,9 @@ public final class GroundZero extends JavaPlugin {
         // 1) Wire services/managers
         Core.init(this);
 
+        // for reloads
+        Core.session.resetToAllSpectators();
+    
         // 2) Register commands (thin router)
         getCommand("groundzero").setExecutor(new CommandRouter());
         getCommand("groundzero").setTabCompleter(new CommandRouter());
@@ -33,7 +37,7 @@ public final class GroundZero extends JavaPlugin {
     @Override
     public void onDisable() {
         // Ensure every scheduled task is cancelled and state cleaned
-        Core.game.cancelAll(); // TODO: cleanup all, force shutdown
+        Core.game.endGame();
         getLogger().info("GroundZero disabled");
     }
 }

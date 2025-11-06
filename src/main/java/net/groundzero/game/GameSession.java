@@ -88,12 +88,17 @@ public class GameSession {
         spectators.clear();
     }
 
-    public void resetToAllSpectators(Set<UUID> online) {
+    public void resetToAllSpectators() {
+        Set<UUID> online = new HashSet<>();
         participants.clear();
         spectators.clear();
-        if (online != null) {
-            spectators.addAll(online);
+        for (Player p : Bukkit.getOnlinePlayers()) {
+            spectators.add(p.getUniqueId());
         }
+    }
+
+    public void removeSpectator(UUID online) {
+        spectators.remove(online);
     }
 
     public void addSpectator(UUID id) {
