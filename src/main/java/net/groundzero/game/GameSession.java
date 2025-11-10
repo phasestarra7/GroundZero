@@ -179,6 +179,17 @@ public class GameSession {
         originalBorderCenter = null;
     }
 
+    public void clearRuntimeAndOptions() {
+        plasmaMap.clear();
+        incomeMap.clear();
+        scoreMap.clear();
+        remainingTicks = 0;
+
+        mapSize = null;
+        income  = null;
+        gameMode = null;
+    }
+
     /* =========================================================
        display helpers
        ========================================================= */

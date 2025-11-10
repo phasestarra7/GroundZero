@@ -96,7 +96,6 @@ public class GameManager {
      */
     private void cancel() {
         session.setState(GameState.IDLE);
-
         restoreEnvironmentToDefault();
 
         if (Core.gameRuntimeService != null) Core.gameRuntimeService.stop();
@@ -106,6 +105,8 @@ public class GameManager {
 
         Core.schedulers.cancelAll();
         Core.guiService.closeAllGZViews();
+        Core.damageService.clearAllLastHits();
+        Core.session.clearRuntimeAndOptions();
     }
 
     /**

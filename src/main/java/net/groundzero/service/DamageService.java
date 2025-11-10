@@ -59,9 +59,13 @@ public final class DamageService {
     }
 
     /** Clear a victim's last-hit snapshot (e.g., on respawn if desired). */
-    public void clear(UUID victim) {
+    private void clear(UUID victim) {
         if (victim == null) return;
         lastHitMap.remove(victim);
+    }
+
+    public void clearAllLastHits() {
+        lastHitMap.clear();
     }
 
     /* ===================== custom-damage helpers ===================== */
@@ -78,7 +82,7 @@ public final class DamageService {
     public void markCustomHit(LivingEntity le) {
         le.setMetadata(META_CUSTOM_HIT, new FixedMetadataValue(Core.plugin, true));
         // auto-clear next tick
-        Bukkit.getScheduler().runTaskLater(Core.plugin, () -> {
+        Core.schedulers.runLater(() -> {
             try {
                 le.removeMetadata(META_CUSTOM_HIT, Core.plugin);
             } catch (Throwable ignored) {}

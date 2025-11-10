@@ -40,6 +40,7 @@ public final class TickBus {
     public void stop() {
         running = false;
         currentTick = 0;
+        subs.clear();
     }
 
     private void scheduleNext() {
