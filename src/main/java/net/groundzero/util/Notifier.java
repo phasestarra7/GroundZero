@@ -45,33 +45,28 @@ public final class Notifier {
 
     /* ----------------------- player message (keep varargs) ----------------------- */
 
-    public void message(Player p, String... lines) {
+    public void message(Player p, boolean isError, String... lines) {
         if (p == null || lines == null || lines.length == 0) return;
-        p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_BELL, 1.0f, PitchLevel.OK.v);
+
+        final float pitch = isError ? PitchLevel.ERR.v : PitchLevel.OK.v;
+        final String pfx  = isError ? PFX_MSG_ERR : PFX_MSG_OK;
+
+        // sound feedback
+        p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_BELL, 1.0f, pitch);
+
+        // text lines
         for (String s : lines) {
-            p.sendMessage(c(PFX_MSG_OK + (s == null ? "" : s)));
+            p.sendMessage(c(pfx + (s == null ? "" : s)));
         }
     }
 
-    public void messageError(Player p, String... lines) {
-        if (p == null || lines == null || lines.length == 0) return;
-        p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_BELL, 1.0f, PitchLevel.ERR.v);
-        for (String s : lines) {
-            p.sendMessage(c(PFX_MSG_ERR + (s == null ? "" : s)));
-        }
-    }
-
-    public void message(CommandSender sender, String... lines) {
+    public void message(CommandSender sender, boolean isError, String... lines) {
         if (sender == null || lines == null || lines.length == 0) return;
-        for (String s : lines) {
-            sender.sendMessage(c(PFX_MSG_OK + (s == null ? "" : s)));
-        }
-    }
 
-    public void messageError(CommandSender sender, String... lines) {
-        if (sender == null || lines == null || lines.length == 0) return;
+        final String pfx = isError ? PFX_MSG_ERR : PFX_MSG_OK;
+
         for (String s : lines) {
-            sender.sendMessage(c(PFX_MSG_ERR + (s == null ? "" : s)));
+            sender.sendMessage(c(pfx + (s == null ? "" : s)));
         }
     }
 

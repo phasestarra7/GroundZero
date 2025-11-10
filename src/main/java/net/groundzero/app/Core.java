@@ -2,6 +2,7 @@ package net.groundzero.app;
 
 import net.groundzero.game.*;
 import net.groundzero.service.*;
+import net.groundzero.service.tick.TickBus;
 import net.groundzero.util.*;
 import org.bukkit.plugin.Plugin;
 
@@ -20,7 +21,12 @@ public final class Core {
     public static LoadoutService loadoutService;
     public static DamageService damageService;
     public static ScoreboardService scoreboardService;
-    public static VoteService voteService;     // ← added
+    public static VoteService voteService;
+    public static GameRuntimeService gameRuntimeService;
+    public static CombatOutcomeService combatOutcomeService;;
+    public static CombatIdleService combatIdleService;
+
+    public static TickBus tickBus;
 
     private Core() {}
 
@@ -31,7 +37,7 @@ public final class Core {
         game = new GameManager();
         session = game.session();
 
-        // oracle
+        // util
         schedulers = new Schedulers(p);
         notifier = new Notifier();
         gameConfig = new GameConfig();
@@ -43,5 +49,10 @@ public final class Core {
         loadoutService = new LoadoutService();
         damageService = new DamageService();
         scoreboardService = new ScoreboardService();
+        gameRuntimeService = new GameRuntimeService();
+        combatOutcomeService = new CombatOutcomeService();
+        combatIdleService = new CombatIdleService();
+
+        tickBus = new TickBus();
     }
 }

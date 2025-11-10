@@ -89,7 +89,6 @@ public class GameSession {
     }
 
     public void resetToAllSpectators() {
-        Set<UUID> online = new HashSet<>();
         participants.clear();
         spectators.clear();
         for (Player p : Bukkit.getOnlinePlayers()) {
@@ -103,10 +102,8 @@ public class GameSession {
 
     public void addSpectator(UUID id) {
         if (id == null) return;
-        // if player is already participant, do not touch
-        if (participants.contains(id)) return;
         spectators.add(id);
-        // TODO : player just joined
+        // other conditions will be checked in PlayerLifecycleListener
     }
 
     /* =========================================================
@@ -118,9 +115,7 @@ public class GameSession {
      * @return true if world was consistent and captured
      */
     public boolean captureWorldAndCenterFromParticipants() {
-        if (participants.isEmpty()) {
-            return false;
-        }
+        if (participants.isEmpty()) { return false; }
 
         World commonWorld = null;
         double sumX = 0;

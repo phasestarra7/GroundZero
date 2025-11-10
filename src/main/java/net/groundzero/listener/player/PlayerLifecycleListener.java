@@ -1,7 +1,6 @@
 package net.groundzero.listener.player;
 
 import net.groundzero.app.Core;
-import net.groundzero.game.GameState;
 import net.groundzero.listener.BaseListener;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -11,50 +10,50 @@ import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 
 /**
- * Player join/quit/death listener.
- * Keeps logic minimal — delegates to PlayerService depending on phase.
+ * Pure routing by game phase:
+ *  - idle
+ *  - pregame (vote/countdown)
+ *  - ingame (running; 'ended' kept for future split)
+ * All logic lives in PlayerService.
  */
 public final class PlayerLifecycleListener extends BaseListener implements Listener {
 
     @EventHandler
-    public void onJoin(PlayerJoinEvent e) {
-        Core.playerService.onPlayerJoin(e.getPlayer());
-        // NOTE: PlayerService decides if rejoin / new spectator / etc.
+    public void onJoin(PlayerJoinEvent event) {
+        Player p = event.getPlayer();
+
+        if (Core.session.state().isPregame()) {
+            Core.playerService.onJoinPregame(p);
+        } else if (Core.session.state().isIngame()) {
+            Core.playerService.onJoinIngame(p);
+        } else { // idle or ended → treat as idle
+            Core.playerService.onJoinIdle(p);
+        }
+    }
+
+    @EventHandler(ignoreCancelled = true)
+    public void onDeath(PlayerDeathEvent event) {
+        Player p = event.getEntity();
+
+        if (Core.session.state().isPregame()) {
+            Core.playerService.onDeathPregame(p);
+        } else if (Core.session.state().isIngame()) {
+            Core.playerService.onDeathIngame(p);
+        } else { // idle/ended
+            Core.playerService.onDeathIdle(p);
+        }
     }
 
     @EventHandler
-    public void onQuit(PlayerQuitEvent e) {
-        Player p = e.getPlayer();
-        if (p == null) return;
+    public void onQuit(PlayerQuitEvent event) {
+        Player p = event.getPlayer();
 
-        GameState state = Core.session.state();
-
-        if (state.isPregame()) {
-            Core.playerService.onPlayerQuitPreGame(p);
-            return;
-        }
-        if (state.isIngame()) {
-            Core.playerService.onPlayerQuitIngame(p);
-            return;
-        }
-
-        Core.playerService.onPlayerQuit(p); // idle / ended
-    }
-
-    @EventHandler
-    public void onDeath(PlayerDeathEvent e) {
-        Player victim = e.getEntity();
-        if (victim == null) return;
-
-        GameState state = Core.session.state();
-
-        if (state.isPregame()) {
-            Core.playerService.onPlayerDeathPreGame(victim);
-            return;
-        }
-        if (state.isIngame()) {
-            Core.playerService.onPlayerDeathIngame(victim);
-            return;
+        if (Core.session.state().isPregame()) {
+            Core.playerService.onQuitPregame(p);
+        } else if (Core.session.state().isIngame()) {
+            Core.playerService.onQuitIngame(p);
+        } else { // idle/ended
+            Core.playerService.onQuitIdle(p);
         }
     }
 }

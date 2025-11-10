@@ -15,10 +15,15 @@ public class GameConfig {
     public double baseScore = 100.0;
 
     /* ===== combat-related config ===== */
-
     public double killStealPercent = 0.10;
-    public double nonPlayerDeathPenaltyPercent = 0.10;
-    public long combatLogoutGraceMillis = 10_000L; // 10 seconds
+    public double deathPenaltyPercent = 0.10;
+    public double nonPlayerDeathPenaltyPercent = 0.05;
+    public long combatWindowMillis = 10_000L; // used as: combat window, logout grace, idle reset window
+
+    /* ===== camping / idle-timer config ===== */
+    public int campWarnSeconds = 10;               // warn at idle >= 10s
+    public int campPenaltyIntervalSeconds = 5;     // after warn, every 5s
+    public double campPenaltyPercent = 0.02;       // -2% of current score per interval
 
     public GameConfig() {}
 }

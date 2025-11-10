@@ -6,7 +6,6 @@ import net.groundzero.listener.player.ItemInteractionListener;
 import net.groundzero.listener.player.PlayerLifecycleListener;
 import net.groundzero.listener.ui.GuiClickListener;
 import net.groundzero.listener.world.WorldProtectionListener;
-import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public final class GroundZero extends JavaPlugin {
@@ -20,8 +19,9 @@ public final class GroundZero extends JavaPlugin {
         Core.session.resetToAllSpectators();
     
         // 2) Register commands (thin router)
-        getCommand("groundzero").setExecutor(new CommandRouter());
-        getCommand("groundzero").setTabCompleter(new CommandRouter());
+        CommandRouter router = new CommandRouter();
+        getCommand("groundzero").setExecutor(router);
+        getCommand("groundzero").setTabCompleter(router);
 
         // 3) Register listeners (thin, delegate to services/game)
         var pm = getServer().getPluginManager();

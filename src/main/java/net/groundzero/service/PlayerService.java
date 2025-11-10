@@ -6,89 +6,104 @@ import org.bukkit.Bukkit;
 import org.bukkit.Sound;
 import org.bukkit.entity.Player;
 
-/**
- * Handles player join/quit/death logic depending on current phase.
- * Keeps GameManager/Listener clean and stateless.
- */
 public final class PlayerService {
 
     public PlayerService() {}
 
-    /* =========================================================
-       JOIN
-       ========================================================= */
+    /* ===================== JOIN ===================== */
 
-    /** Called from PlayerLifecycleListener.onJoin */
-    public void onPlayerJoin(Player p) {
+    public void onJoinIdle(Player p) {
         if (p == null) return;
+        if (Core.session.getSpectatorsView().contains(p.getUniqueId())) return;
+
         Core.session.addSpectator(p.getUniqueId());
-        // TODO: check if player was already a spectator / restore state if needed
+        Core.notifier.message(
+                p,
+                false,
+                "Welcome to GroundZero",
+                "To start the game, use &e/groundzero start"
+        );
     }
 
-    /* =========================================================
-       QUIT
-       ========================================================= */
+    public void onJoinPregame(Player p) {
+        if (p == null) return;
+        if (Core.session.getSpectatorsView().contains(p.getUniqueId())) return;
 
-    /** Normal quit during IDLE or ENDED */
-    public void onPlayerQuit(Player p) {
+        Core.session.addSpectator(p.getUniqueId());
+        Core.notifier.message(
+                p,
+                false,
+                "Welcome to GroundZero",
+                "You joined as spectator, you won't be participating this game session"
+        );
+    }
+
+    public void onJoinIngame(Player p) {
+        if (p == null) return;
+        if (Core.session.getSpectatorsView().contains(p.getUniqueId())) return;
+        // Requested policy: treat joiners as spectators (IDLE-like) until respawn policy is defined
+        Core.session.addSpectator(p.getUniqueId());
+        Core.notifier.message(
+                p,
+                false,
+                "Welcome to GroundZero",
+                "You joined as spectator, you won't be participating this game session"
+        );
+        Core.game.teleportSpectatorsAndChangeGamemode(p.getUniqueId());
+    }
+
+    /* ===================== QUIT ===================== */
+
+    public void onQuitIdle(Player p) {
         if (p == null) return;
         Core.session.removeSpectator(p.getUniqueId());
     }
 
-    /** Quit during pre-game (vote or countdown) */
-    public void onPlayerQuitPreGame(Player p) {
+    public void onQuitPregame(Player p) {
         if (p == null) return;
-
+        Core.session.removeSpectator(p.getUniqueId());
         Core.game.tryCancel(p);
-        Core.notifier.broadcast(
-            Bukkit.getOnlinePlayers(),
-            Sound.BLOCK_ANVIL_LAND,
-            Notifier.PitchLevel.LOW,
-            true,
-            p.getName() + " left during setup",
-            "Game canceled"
-        );
-    }
-
-    /** Quit during running game */
-    public void onPlayerQuitIngame(Player p) {
-        if (p == null) return;
-
-        // Handle combat logging etc.
-        Core.damageService.handlePlayerQuitDuringCombat(p);
-
-        // Optional feedback
         Core.notifier.broadcast(
                 Bukkit.getOnlinePlayers(),
-                Sound.BLOCK_NOTE_BLOCK_BASS,
-                Notifier.PitchLevel.LOW,
-                false,
-                "&7" + p.getName() + " left the battlefield." // TODO
+                Sound.BLOCK_ANVIL_LAND, Notifier.PitchLevel.LOW, true,
+                p.getName() + " left during setup",
+                "Game canceled"
         );
     }
 
-    /* =========================================================
-       DEATH
-       ========================================================= */
-
-    /** Death during pre-game — cancel whole setup */
-    public void onPlayerDeathPreGame(Player p) {
+    public void onQuitIngame(Player p) {
         if (p == null) return;
+        // TODO: combat-logout grace & forced death policy will be implemented here later.
+        // (No scheduling right now per request)
+        Core.notifier.broadcast(
+                Bukkit.getOnlinePlayers(),
+                Sound.BLOCK_NOTE_BLOCK_BASS, Notifier.PitchLevel.LOW, false,
+                "§7" + p.getName() + " left the battlefield."
+        );
+    }
 
+    /* ===================== DEATH ===================== */
+
+    public void onDeathIdle(Player p) {
+        if (p == null) return;
+        // Probably ignore or send to lobby spawn (no-op for now)
+    }
+
+    public void onDeathPregame(Player p) {
+        if (p == null) return;
         Core.game.tryCancel(p);
         Core.notifier.broadcast(
-            Bukkit.getOnlinePlayers(),
-            Sound.BLOCK_ANVIL_LAND,
-            Notifier.PitchLevel.LOW,
-            true,
-            p.getName() + " died during setup",
-            "Game canceled"
+                Bukkit.getOnlinePlayers(),
+                Sound.BLOCK_ANVIL_LAND, Notifier.PitchLevel.LOW, true,
+                p.getName() + " died during setup",
+                "Game canceled"
         );
     }
 
-    /** Death during running game — delegate to DamageService */
-    public void onPlayerDeathIngame(Player p) {
+    public void onDeathIngame(Player p) {
         if (p == null) return;
-        Core.damageService.handlePlayerBukkitDeath(p);
+        if (Core.session.getSpectatorsView().contains(p.getUniqueId())) return;
+
+        Core.combatOutcomeService.handlePlayerDeath(p); // TODO
     }
 }

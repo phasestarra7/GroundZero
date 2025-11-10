@@ -1,7 +1,6 @@
 package net.groundzero.game;
 
 import net.groundzero.app.Core;
-import net.groundzero.ui.options.GameModeOption;
 import net.groundzero.ui.options.IncomeOption;
 import net.groundzero.ui.options.MapSizeOption;
 import net.groundzero.util.Notifier;
@@ -31,26 +30,26 @@ public class GameManager {
     public GameManager() {}
 
     /* =========================================================
-       PUBLIC ENTRYPOINTS
+       PUBLIC ENTRYPOINT
        ========================================================= */
 
     /**
      * Start the game flow from IDLE.
      */
-    public void start(Player sender) {
+    public void start(Player p) {
         GameState st = session.state();
 
         if (st == GameState.IDLE) {
-            if (sender != null) startFromIdle(sender);
+            if (p != null) startFromIdle(p); // actually performs start
             return;
         } else if (st.isPregame()) {
-            if (sender != null)
-                Core.notifier.messageError(sender, "The game is already starting");
+            if (p != null)
+                Core.notifier.message(p, true, "The game is already starting");
             return;
         }
 
-        if (sender != null)
-            Core.notifier.messageError(sender, "The game is already running");
+        if (p != null)
+            Core.notifier.message(p, true, "The game is already running");
     }
 
     /**
@@ -58,27 +57,26 @@ public class GameManager {
      * If the game is in pregame, we run cancel();
      * If already running, we just notify "already running".
      */
-    public void tryCancel(Player sender) {
+    public void tryCancel(Player p) {
         GameState st = session.state();
 
         if (st == GameState.IDLE) {
-            if (sender != null)
-                Core.notifier.messageError(sender, "There is no game starting");
+            if (p != null)
+                Core.notifier.message(p, true, "There is no game starting");
             return;
         } else if (st.isPregame()) {
-            String who = (sender != null ? sender.getName() : "server");
             Core.notifier.broadcast(
                     Bukkit.getOnlinePlayers(),
                     Sound.BLOCK_ANVIL_LAND,
                     Notifier.PitchLevel.LOW,
                     true,
-                    "GroundZero canceled by &a" + who);
+                    "GroundZero canceled by &a" + p.getName());
             cancel(); // actually performs cleanup
             return;
         }
 
-        if (sender != null)
-            Core.notifier.messageError(sender, "The game is already running");
+        if (p != null)
+            Core.notifier.message(p, true, "The game is already running");
     }
 
     /**
@@ -97,14 +95,17 @@ public class GameManager {
      * - only scheduled votes / countdowns
      */
     private void cancel() {
-        restoreEnvironmentToDefault();
-        Core.schedulers.cancelAll();
-
-        if (Core.scoreboardService != null)
-            Core.scoreboardService.clearAll();
-
-        Core.guiService.closeAllGZViews();
         session.setState(GameState.IDLE);
+
+        restoreEnvironmentToDefault();
+
+        if (Core.gameRuntimeService != null) Core.gameRuntimeService.stop();
+        if (Core.scoreboardService != null) Core.scoreboardService.stop();
+        if (Core.combatIdleService != null) Core.combatIdleService.stop();
+        if (Core.tickBus != null) Core.tickBus.stop();
+
+        Core.schedulers.cancelAll();
+        Core.guiService.closeAllGZViews();
     }
 
     /**
@@ -121,6 +122,11 @@ public class GameManager {
                 false,
                 "GroundZero ended."
         );
+
+        if (Core.gameRuntimeService != null) Core.gameRuntimeService.stop();
+        if (Core.scoreboardService != null) Core.scoreboardService.stop();
+        if (Core.combatIdleService != null) Core.combatIdleService.stop();
+        if (Core.tickBus != null) Core.tickBus.stop();
 
         if (Core.plugin != null && Core.plugin.isEnabled())
             Core.schedulers.runLater(() -> forceCancel(null), 1L);
@@ -254,7 +260,6 @@ public class GameManager {
        ========================================================= */
 
     private void gotoRunning() {
-        session.setState(GameState.RUNNING);
 
         // set world border
         World w = session.world();
@@ -273,23 +278,21 @@ public class GameManager {
         // give loadouts
         Core.loadoutService.giveInitialLoadouts(session.getParticipantsView());
 
-        // show scoreboard (exists only from RUNNING)
-        if (Core.scoreboardService != null) {
-            Core.scoreboardService.showGameBoard(session);
-        }
-
         // set match time
         session.setRemainingTicks(Core.gameConfig.matchDurationTicks);
 
-        // scoreboard drives runtime (plasma/income/time) and will call endGame()
-        if (Core.scoreboardService != null) {
-            Core.scoreboardService.startGameTick(session);
-        }
+        // start services bound to TickBus
+        Core.gameRuntimeService.start(session);  // time, income
+        Core.scoreboardService.start(session);   // UI-only
+        Core.combatIdleService.start(); // subscriber persists
+        Core.tickBus.start();
 
         // random spawn inside border
         for (UUID id : session.getParticipantsView()) {
-            teleportPlayerRandomly(id);
+            teleportParticipantRandomly(id);
         }
+        // TODO : teleport spectators
+        session.setState(GameState.RUNNING); // ... and change state after everything's done
 
         Core.notifier.broadcast(
             Bukkit.getOnlinePlayers(),
@@ -374,7 +377,7 @@ public class GameManager {
         }
     }
 
-    private void teleportPlayerRandomly(UUID id) {
+    public void teleportParticipantRandomly(UUID id) {
         World world = session.world();
         Location center = session.center();
         MapSizeOption sizeOpt = session.mapSize();
@@ -411,5 +414,31 @@ public class GameManager {
                 false,
                 false
         ));
+    }
+
+    public void teleportSpectatorsAndChangeGamemode(UUID id) {
+        World world = session.world();
+        Location center = session.center();
+        MapSizeOption sizeOpt = session.mapSize();
+        if (world == null || center == null || sizeOpt == null) return;
+
+        Player p = Bukkit.getPlayer(id);
+        if (p == null || !p.isOnline()) return;
+
+        double targetX = center.getX();
+        double targetZ = center.getZ();
+
+        int highest = world.getHighestBlockYAt((int) Math.floor(targetX), (int) Math.floor(targetZ));
+        double targetY = highest + 100.0;
+
+        Location dest = new Location(
+                world,
+                targetX + 0.5,
+                targetY,
+                targetZ + 0.5
+        );
+
+        p.setGameMode(GameMode.SPECTATOR);
+        p.teleport(dest);
     }
 }

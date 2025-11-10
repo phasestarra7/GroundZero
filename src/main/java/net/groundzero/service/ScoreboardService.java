@@ -3,6 +3,7 @@ package net.groundzero.service;
 import net.groundzero.app.Core;
 import net.groundzero.game.GameSession;
 import net.groundzero.game.GameState;
+import net.groundzero.service.tick.TickBus;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
@@ -13,141 +14,81 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Scoreboard service:
- * - build per-player boards
- * - refresh values from session
- * - run game tick (plasma += income/20, time--)
- * - clear on cancel/end
+ * Scoreboard renderer (UI-only).
+ * - Subscribes to TickBus to refresh visuals.
+ * - Does NOT mutate time/plasma/income/score, nor end the game.
  */
-public class ScoreboardService {
+public class ScoreboardService implements TickBus.Tickable {
 
-    // playerId -> scoreboard
     private final Map<UUID, Scoreboard> boards = new HashMap<>();
-    // playerId -> (teamName -> team)
     private final Map<UUID, Map<String, Team>> boardTeams = new HashMap<>();
 
-    public ScoreboardService() {
+    // keep as final and set to 1 now; changeable later
+    private static final int UI_UPDATE_PERIOD_TICKS = 1;
+    private int lastUiUpdateTick = 0;
+
+    private GameSession session;
+
+    public void start(GameSession session) {
+        this.session = session;
+        this.lastUiUpdateTick = 0;
+        showGameBoard(session);
+        Core.tickBus.register(this);
     }
 
-    /* ===================== public API ===================== */
+    public void stop() {
+        Core.tickBus.unregister(this);
+        this.session = null;
+        clearAllBoardsAndRestoreMain();
+    }
 
-    /**
-     * Show game board for every participant
-     */
+    // on tick impl
+    @Override
+    public void onTick(int currentTick) {
+        if (session == null) return;
+        if (Core.session.state() != GameState.RUNNING) return;
+
+        if (currentTick - lastUiUpdateTick < UI_UPDATE_PERIOD_TICKS) return;
+        lastUiUpdateTick = currentTick;
+
+        int ticksLeft = session.remainingTicks();
+
+        for (UUID id : session.getParticipantsView()) {
+            refreshFromSession(session, id, ticksLeft);
+        }
+    }
+
     public void showGameBoard(GameSession session) {
         for (UUID id : session.getParticipantsView()) {
-            Player p = Bukkit.getPlayer(id);
-            ensureBoard(p);
+            ensureBoard(Bukkit.getPlayer(id));
         }
     }
 
-    /**
-     * Start per-tick update for this session
-     */
-    public void startGameTick(GameSession session) {
-        Core.schedulers.runTimer(() -> {
-            if (session == null) return;
-            if (!session.state().isIngame()) return;
+    public void clearAllBoardsAndRestoreMain() {
 
-            // 1) decrease remaining time
-            int left = session.remainingTicks();
-            if (left > 0) {
-                session.setRemainingTicks(left - 1);
-            } else {
-                // time over -> end game
-                Core.game.endGame();
-                return;
-            }
-
-            // 2) update per-player runtime values
-            for (UUID id : session.getParticipantsView()) {
-                // income per second
-                double incomePerSec = getPerPlayerIncome(session, id);
-                double incomePerTick = incomePerSec / 20.0;
-
-                // plasma
-                double currentPlasma = session.getPlasmaMap()
-                        .getOrDefault(id, Core.gameConfig.basePlasma);
-                double nextPlasma = currentPlasma + incomePerTick;
-                session.getPlasmaMap().put(id, nextPlasma);
-
-                // push to board
-                refreshFromSession(session, id, session.remainingTicks());
-            }
-        }, 1L, 1L);
-    }
-
-    /**
-     * Clear all boards and return players to main board.
-     *
-     * NOTE:
-     * - This can be called from onDisable() via Core.game.cancelAll().
-     * - If plugin is not enabled anymore, we MUST NOT schedule a new task.
-     */
-    public void clearAll() {
-        // plugin is shutting down or already disabled → run immediately
-        if (Core.plugin == null || !Core.plugin.isEnabled()) {
-            clearAllNow();
-            return;
-        }
-
-        // normal runtime → safe to schedule to main thread
-        Bukkit.getScheduler().runTask(Core.plugin, this::clearAllNow);
-    }
-
-    /**
-     * Actual cleanup logic. MUST run on main thread.
-     */
-    private void clearAllNow() {
         ScoreboardManager mgr = Bukkit.getScoreboardManager();
         Scoreboard main = (mgr != null ? mgr.getMainScoreboard() : null);
 
         for (Player p : Bukkit.getOnlinePlayers()) {
             Scoreboard sb = p.getScoreboard();
             if (sb != null) {
-                // remove our objective
                 Objective obj = sb.getObjective("gz");
-                if (obj != null) {
-                    try {
-                        obj.unregister();
-                    } catch (Exception ignored) {
-                    }
-                }
+                if (obj != null) try { obj.unregister(); } catch (Exception ignored) {}
 
-                // remove our teams
                 for (Team t : sb.getTeams()) {
                     String n = t.getName();
                     if (n != null && (n.equals("gz") || n.startsWith("row_"))) {
-                        try {
-                            t.unregister();
-                        } catch (Exception ignored) {
-                        }
+                        try { t.unregister(); } catch (Exception ignored) {}
                     }
                 }
             }
-
-            // restore player's scoreboard
-            if (main != null) {
-                p.setScoreboard(main);
-            } else if (mgr != null) {
-                p.setScoreboard(mgr.getNewScoreboard());
-            }
+            if (main != null) p.setScoreboard(main);
         }
-
         boards.clear();
         boardTeams.clear();
     }
 
-    /* ===================== per-player income accessor ===================== */
-
-    public double getPerPlayerIncome(GameSession session, UUID id) {
-        if (session == null || id == null) {
-            return Core.gameConfig.baseIncomePerSecond;
-        }
-        return session.getIncomeMap().getOrDefault(id, Core.gameConfig.baseIncomePerSecond);
-    }
-
-    /* ===================== refresh logic ===================== */
+    /* ---------- render helpers (layout unchanged) ---------- */
 
     public void refreshFromSession(GameSession session, UUID id, int ticksLeft) {
         Player p = Bukkit.getPlayer(id);
@@ -159,30 +100,18 @@ public class ScoreboardService {
         Map<String, Team> teams = boardTeams.get(p.getUniqueId());
         if (sb == null || teams == null) return;
 
-        // name
         String name = p.getName();
-
-        // coords
         Location loc = p.getLocation();
-        String coords = String.format("x: %.2f y: %.2f z: %.2f",
-                loc.getX(), loc.getY(), loc.getZ());
-
-        // time
+        String coords = String.format("x: %.2f y: %.2f z: %.2f", loc.getX(), loc.getY(), loc.getZ());
         String timeLeft = formatTimeFromTicks(ticksLeft);
 
-        // plasma
-        double plasmaVal = session.getPlasmaMap()
-                .getOrDefault(id, Core.gameConfig.basePlasma);
+        double plasmaVal = session.getPlasmaMap().getOrDefault(id, Core.gameConfig.basePlasma);
         String plasmaText = String.format("%.2f", plasmaVal);
 
-        // income
-        double incomeVal = session.getIncomeMap()
-                .getOrDefault(id, Core.gameConfig.baseIncomePerSecond);
+        double incomeVal = session.getIncomeMap().getOrDefault(id, Core.gameConfig.baseIncomePerSecond);
         String incomeText = "+" + String.format("%.2f", incomeVal) + "/s";
 
-        // score
-        double scoreVal = session.getScoreMap()
-                .getOrDefault(id, Core.gameConfig.baseScore);
+        double scoreVal = session.getScoreMap().getOrDefault(id, Core.gameConfig.baseScore);
         String scoreText = String.format("%.2f", scoreVal);
 
         teams.get("row_player").setSuffix("§a" + name);
@@ -192,8 +121,6 @@ public class ScoreboardService {
         teams.get("row_income").setSuffix("§e" + incomeText);
         teams.get("row_score").setSuffix("§6" + scoreText);
     }
-
-    /* ===================== board ensure/build ===================== */
 
     private void ensureBoard(Player p) {
         if (p == null) return;
@@ -209,29 +136,22 @@ public class ScoreboardService {
         Map<String, Team> teams = new HashMap<>();
         boardTeams.put(p.getUniqueId(), teams);
 
-        // layout (copied from your repo order)
         addStaticBlankLine(sb, obj, 8, "§1");
         addTeamLine(sb, obj, teams, "row_player", "§fPlayer §f: ", "", 7, "§2");
-        addTeamLine(sb, obj, teams, "row_time", "§fTime Left §f: ", "", 6, "§3");
-        addTeamLine(sb, obj, teams, "row_coord", "§fCoords §f: ", "", 5, "§4");
+        addTeamLine(sb, obj, teams, "row_time",   "§fTime Left §f: ", "", 6, "§3");
+        addTeamLine(sb, obj, teams, "row_coord",  "§fCoords §f: ",    "", 5, "§4");
         addStaticBlankLine(sb, obj, 4, "§5");
-        addTeamLine(sb, obj, teams, "row_plasma", "§bPlasma §f: ", "", 3, "§6");
-        addTeamLine(sb, obj, teams, "row_income", "§bIncome §f: ", "", 2, "§7");
+        addTeamLine(sb, obj, teams, "row_plasma", "§bPlasma §f: ",   "", 3, "§6");
+        addTeamLine(sb, obj, teams, "row_income", "§bIncome §f: ",   "", 2, "§7");
         addStaticBlankLine(sb, obj, 1, "§8");
-        addTeamLine(sb, obj, teams, "row_score", "§dScore §f: ", "", 0, "§9");
+        addTeamLine(sb, obj, teams, "row_score",  "§dScore §f: ",    "", 0, "§9");
 
         boards.put(p.getUniqueId(), sb);
         p.setScoreboard(sb);
     }
 
-    private void addTeamLine(Scoreboard sb,
-         Objective obj,
-         Map<String, Team> teams,
-         String teamName,
-         String label,
-         String initial,
-         int score,
-         String entryKey) {
+    private void addTeamLine(Scoreboard sb, Objective obj, Map<String, Team> teams,
+                             String teamName, String label, String initial, int score, String entryKey) {
         Team team = sb.registerNewTeam(teamName);
         team.setPrefix(label);
         team.setSuffix(initial);
@@ -245,7 +165,7 @@ public class ScoreboardService {
     }
 
     private String formatTimeFromTicks(int ticks) {
-        int totalSec = ticks / 20;
+        int totalSec = Math.max(0, ticks / 20);
         int m = totalSec / 60;
         int s = totalSec % 60;
         return String.format("%02d:%02d", m, s);
