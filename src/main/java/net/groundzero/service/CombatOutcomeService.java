@@ -48,25 +48,26 @@ public final class CombatOutcomeService {
         }
 
         UUID aId = (inWindow ? last.attacker : null);
+
         if (aId != null) {
+            // victim loses % of their own score
             double loss = Math.max(0.0, vScore * clamp01(Core.gameConfig.deathPenaltyPercent));
 
             double aScore = Core.session.getScoreMap().getOrDefault(aId, 0.0);
-            double gain = Math.max(0.0, aScore * clamp01(Core.gameConfig.killStealPercent));
+            // attacker gains % of the VICTIM's score (steal from victim)
+            double gain = Math.max(0.0, vScore * clamp01(Core.gameConfig.killStealPercent));
 
             Core.session.getScoreMap().put(victimId, Math.max(0.0, vScore - loss));
             Core.session.getScoreMap().put(aId, Math.max(0.0, aScore + gain));
 
-            String aName = java.util.Optional
-                    .ofNullable(Bukkit.getOfflinePlayer(aId).getName())
-                    .orElse(aId.toString().substring(0, 8));
+            String aName = Bukkit.getPlayer(aId).getName();
 
             Core.notifier.broadcast(
                     Bukkit.getOnlinePlayers(),
                     Sound.ENTITY_PLAYER_LEVELUP, Notifier.PitchLevel.HIGH, false,
                     "&a" + aName + " §fkilled §c" + victimName
-                            + " §7(§6+" + fmt(gain) + "§7 / §c-" + fmt(loss)
-            ); // TODO : use weaponId to format nicely
+                            + " §7(§6+" + fmt(gain) + "§7 / §c-" + fmt(loss + gain) + "§7)"
+            ); // TODO : use weaponId to format nicer
         } else {
             double loss = Math.max(0.0, vScore * clamp01(Core.gameConfig.nonPlayerDeathPenaltyPercent));
 

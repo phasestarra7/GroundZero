@@ -124,12 +124,13 @@ public class GameManager {
                 "GroundZero ended."
         );
         for (UUID id : session.getParticipantsView()) {
+            Player p = Bukkit.getPlayer(id);
+            if (p == null) continue;
+            double score = session.getScoreMap().getOrDefault(id, 0.0);
             Core.notifier.broadcast(
                     Bukkit.getOnlinePlayers(),
-                    null,
-                    null,
-                    false,
-                    Bukkit.getPlayer(id).getName() + " : " + session.getScoreMap().getOrDefault(id, 0.0)
+                    null, null, false,
+                    p.getName() + " : " + String.format("%.1f", score)
             );
         }  // testing, without sorting
 
@@ -166,6 +167,7 @@ public class GameManager {
                 "All players should be in the same world"
             );
             session.setState(GameState.IDLE);
+            session.resetToAllSpectators();
             return;
         }
 
@@ -192,10 +194,6 @@ public class GameManager {
         Core.game.session().restoreOriginalBorder();
 
         // b) players to spectator (your session already knows how)
-        Set<UUID> online = new HashSet<>();
-        for (org.bukkit.entity.Player op : org.bukkit.Bukkit.getOnlinePlayers()) {
-            online.add(op.getUniqueId());
-        }
         Core.game.session().resetToAllSpectators();
 
         World w = session.world();
