@@ -122,6 +122,15 @@ public class GameManager {
                 false,
                 "GroundZero ended."
         );
+        for (UUID id : session.getParticipantsView()) {
+            Core.notifier.broadcast(
+                    Bukkit.getOnlinePlayers(),
+                    null,
+                    null,
+                    false,
+                    Bukkit.getPlayer(id).getName() + " : " + session.getScoreMap().getOrDefault(id, 0.0)
+            );
+        }  // testing, without sorting
 
         if (Core.gameRuntimeService != null) Core.gameRuntimeService.stop();
         if (Core.scoreboardService != null) Core.scoreboardService.stop();

@@ -18,10 +18,6 @@ import java.util.UUID;
  */
 public final class CombatOutcomeService {
 
-    private long combatWindowMs() {
-        return Math.max(0L, Core.gameConfig.combatWindowMillis);
-    }
-
     /** Death while INGAME: resolve attacker (if within window), apply score transfers/penalties, and spectatorize. */
     public void handlePlayerDeath(Player victim) {
         if (victim == null || !Core.session.state().isIngame()) return;
@@ -44,8 +40,12 @@ public final class CombatOutcomeService {
 
         // Resolve attacker within window (environment/mob deaths included)
         LastHit last = Core.damageService.peekLastHit(victimId);
-        long now = System.currentTimeMillis();
-        boolean inWindow = (last != null) && (now - last.timestamp) <= combatWindowMs();
+        boolean inWindow = false;
+        if (last != null) {
+            int nowTicks = Core.session.remainingTicks();
+            int dt = last.tick - nowTicks;
+            inWindow = (dt >= 0) && (dt < Core.gameConfig.combatWindowTicks);
+        }
 
         UUID aId = (inWindow ? last.attacker : null);
         if (aId != null) {

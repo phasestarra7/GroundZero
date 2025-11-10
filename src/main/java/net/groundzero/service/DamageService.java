@@ -43,15 +43,16 @@ public final class DamageService {
         if (victim == null || kind == null) return;
         if (!Core.session.state().isIngame()) return;
 
+        int snap = Core.session.remainingTicks();
         lastHitMap.put(victim, new LastHit(
-                victim, attacker, kind, weaponId, amount, System.currentTimeMillis()
+                victim, attacker, kind, weaponId, amount, snap
         ));
 
         // Reset camping idle timer on combat event
         Core.combatIdleService.onCombatEvent(attacker, victim);
     }
 
-    /** Read-only peek of last hit (may be null). */
+    /** Read-only peek of last hit (maybe null). */
     public LastHit peekLastHit(UUID victim) {
         if (victim == null) return null;
         return lastHitMap.get(victim);

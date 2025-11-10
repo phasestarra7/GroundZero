@@ -18,12 +18,14 @@ public class GameConfig {
     public double killStealPercent = 0.10;
     public double deathPenaltyPercent = 0.10;
     public double nonPlayerDeathPenaltyPercent = 0.05;
-    public long combatWindowMillis = 10_000L; // used as: combat window, logout grace, idle reset window
+    public int combatWindowTicks = 200; // used as: combat window, logout grace, idle reset window
 
     /* ===== camping / idle-timer config ===== */
-    public int campWarnSeconds = 10;               // warn at idle >= 10s
-    public int campPenaltyIntervalSeconds = 5;     // after warn, every 5s
-    public double campPenaltyPercent = 0.02;       // -2% of current score per interval
+    public int campWarnTicks = 90 * 20;
+    public int campFirstPenaltyTicks = 120 * 20;
+    public int campPenaltyIntervalTicks = 60 * 20;
+    public double campPenaltyPercent = 0.05;
+    public int campMaxStacks = 3;
 
     public GameConfig() {}
 }

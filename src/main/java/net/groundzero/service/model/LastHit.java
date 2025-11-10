@@ -11,15 +11,15 @@ public final class LastHit {
     public final DamageKind kind;   // classification
     public final String weaponId;   // nullable; e.g., custom weapon key
     public final double amount;     // raw damage amount at record time (hp)
-    public final long timestamp;    // System.currentTimeMillis()
+    public final int tick;    // System.currentTimeMillis()
 
     public LastHit(UUID victim, UUID attacker, DamageKind kind,
-                   String weaponId, double amount, long timestamp) {
+                   String weaponId, double amount, int tick) {
         this.victim = victim;
         this.attacker = attacker;
         this.kind = kind;
         this.weaponId = weaponId;
         this.amount = amount;
-        this.timestamp = timestamp;
+        this.tick = tick;
     }
 }
