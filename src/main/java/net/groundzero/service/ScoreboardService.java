@@ -29,7 +29,11 @@ public class ScoreboardService implements TickBus.Tickable {
 
     private GameSession session;
 
+    private boolean running = false;
+
     public void start(GameSession session) {
+        if (running) return;
+        running = true;
         this.session = session;
         this.lastUiUpdateTick = 0;
         showGameBoard(session);
@@ -37,6 +41,8 @@ public class ScoreboardService implements TickBus.Tickable {
     }
 
     public void stop() {
+        if (!running) return;
+        running = false;
         Core.tickBus.unregister(this);
         this.session = null;
         clearAllBoardsAndRestoreMain();
@@ -46,7 +52,7 @@ public class ScoreboardService implements TickBus.Tickable {
     @Override
     public void onTick(int currentTick) {
         if (session == null) return;
-        if (Core.session.state() != GameState.RUNNING) return;
+        if (!Core.session.state().isIngame()) return;
 
         if (currentTick - lastUiUpdateTick < UI_UPDATE_PERIOD_TICKS) return;
         lastUiUpdateTick = currentTick;

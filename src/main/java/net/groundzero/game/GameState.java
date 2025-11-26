@@ -11,11 +11,6 @@ public enum GameState {
     RUNNING,
     ENDED;
 
-    /** @return true when we are not in any match. */
-    public boolean isIdleLike() {
-        return this == IDLE || this == ENDED;
-    }
-
     /** @return true when we are before the actual match start (all voting/countdown). */
     public boolean isPregame() {
         return this == COUNTDOWN_BEFORE_VOTING
@@ -31,5 +26,6 @@ public enum GameState {
      */
     public boolean isIngame() {
         return this == RUNNING;
+        // maybe more in-game phases can be added
     }
 }

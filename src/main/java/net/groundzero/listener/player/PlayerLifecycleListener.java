@@ -11,10 +11,11 @@ import org.bukkit.event.player.PlayerQuitEvent;
 
 /**
  * Pure routing by game phase:
- *  - idle
- *  - pregame (vote/countdown)
- *  - ingame (running; 'ended' kept for future split)
- * All logic lives in PlayerService.
+ * - idle
+ * - pregame (vote/countdown)
+ * - ingame (running; 'ended' kept for future split)
+ *
+ * All game-specific logic lives in PlayerService and related services.
  */
 public final class PlayerLifecycleListener extends BaseListener implements Listener {
 
@@ -34,10 +35,17 @@ public final class PlayerLifecycleListener extends BaseListener implements Liste
     @EventHandler(ignoreCancelled = true)
     public void onDeath(PlayerDeathEvent event) {
         Player p = event.getEntity();
+        String vanillaMsg = event.getDeathMessage(); // original vanilla death message
+
+        // Prevent vanilla from also broadcasting its own death message.
+        event.setDeathMessage(null);
 
         if (Core.session.state().isPregame()) {
             Core.playerService.onDeathPregame(p);
         } else if (Core.session.state().isIngame()) {
+            // Score / kill credit + custom death message
+            Core.combatOutcomeService.handlePlayerDeath(p, vanillaMsg);
+            // Respawn / spectator logic
             Core.playerService.onDeathIngame(p);
         } else { // idle/ended
             Core.playerService.onDeathIdle(p);

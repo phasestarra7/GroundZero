@@ -9,6 +9,9 @@ public class GameConfig {
     // match length: 20 ticks * 60 sec * 20 min = 20 minutes
     public int matchDurationTicks = 20 * 60 * 20;
 
+    // match end result printing delay
+    public int delayTicks = 10 * 20;
+
     // base resources
     public double basePlasma = 0.0;
     public double baseIncomePerSecond = 10.0;

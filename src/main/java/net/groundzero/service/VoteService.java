@@ -344,7 +344,6 @@ public final class VoteService {
                         false,
                         "Income Multiplier selected : §a" + chosen.label
                 );
-                Core.game.applyIncomeOptionToParticipants(chosen);
             }
             Core.schedulers.runLater(Core.game::gotoVotingGameMode, 3 * 20L);
         }, 2 * 20L);

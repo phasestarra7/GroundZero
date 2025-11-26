@@ -17,12 +17,18 @@ public final class GameRuntimeService implements TickBus.Tickable {
 
     private GameSession session;
 
+    private boolean running = false;
+
     public void start(GameSession session) {
+        if (running) return;
+        running = true;
         this.session = session;
         Core.tickBus.register(this);
     }
 
     public void stop() {
+        if (!running) return;
+        running = false;
         Core.tickBus.unregister(this);
         this.session = null;
     }
