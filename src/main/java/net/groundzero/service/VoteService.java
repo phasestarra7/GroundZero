@@ -37,11 +37,29 @@ public final class VoteService {
 
     private static final Random RNG = new Random();
 
+    private Runnable onVotingComplete;
+
     public VoteService() {}
 
-    /* =========================================================
-       exposed from GameManager
-       ========================================================= */
+    public void reset() {
+        acceptingVotes = false;
+        onVotingComplete = null;
+        votedMapSize.clear();
+        votedIncome.clear();
+        votedMode.clear();
+        mapVotes.clear();
+        incomeVotes.clear();
+        modeVotes.clear();
+    }
+
+    /**
+     * Start the entire voting flow.
+     * @param onComplete called when all votes are done
+     */
+    public void startVoting(Runnable onComplete) {
+        this.onVotingComplete = onComplete;
+        startPreVoteCountdown(this::startMapSizeVote);
+    }
 
     public void startPreVoteCountdown(Runnable onDone) {
         startCountdownInternal(5, onDone);
@@ -302,16 +320,17 @@ public final class VoteService {
             MapSizeOption chosen = pickRandom(ties);
             if (chosen != null) {
                 highlightMapSizeSelected(chosen.label, chosen.slot);
-                Core.game.session().setMapSize(chosen);
+                Core.session.setMapSize(chosen);
                 Core.notifier.broadcast(
-                    Core.game.session().getParticipantsView(),
-                    Sound.ENTITY_PLAYER_LEVELUP,
-                    Notifier.PitchLevel.MID,
-                    false,
-                    "Map size selected : §a" + chosen.label
+                        Core.session.getParticipantsView(),
+                        Sound.ENTITY_PLAYER_LEVELUP,
+                        Notifier.PitchLevel.MID,
+                        false,
+                        "Map size selected : §a" + chosen.label
                 );
             }
-            Core.schedulers.runLater(Core.game::gotoVotingIncome, 3 * 20L);
+            // Changed: call internal method instead of GameManager
+            Core.schedulers.runLater(this::startIncomeVote, 3 * 20L);
         }, 2 * 20L);
     }
 
@@ -336,16 +355,17 @@ public final class VoteService {
             IncomeOption chosen = pickRandom(ties);
             if (chosen != null) {
                 highlightIncomeSelected(chosen.label, chosen.slot);
-                Core.game.session().setIncome(chosen);
+                Core.session.setIncome(chosen);
                 Core.notifier.broadcast(
-                        Core.game.session().getParticipantsView(),
+                        Core.session.getParticipantsView(),
                         Sound.ENTITY_PLAYER_LEVELUP,
                         Notifier.PitchLevel.MID,
                         false,
                         "Income Multiplier selected : §a" + chosen.label
                 );
             }
-            Core.schedulers.runLater(Core.game::gotoVotingGameMode, 3 * 20L);
+            // Changed: call internal method instead of GameManager
+            Core.schedulers.runLater(this::startGameModeVote, 3 * 20L);
         }, 2 * 20L);
     }
 
@@ -370,16 +390,24 @@ public final class VoteService {
             GameModeOption chosen = pickRandom(ties);
             if (chosen != null) {
                 highlightGameModeSelected(chosen.label, chosen.slot);
-                Core.game.session().setGameMode(chosen);
+                Core.session.setGameMode(chosen);
                 Core.notifier.broadcast(
-                        Core.game.session().getParticipantsView(),
+                        Core.session.getParticipantsView(),
                         Sound.ENTITY_PLAYER_LEVELUP,
                         Notifier.PitchLevel.MID,
                         false,
                         "Game Mode selected : §a" + chosen.label
                 );
             }
-            Core.schedulers.runLater(Core.game::gotoCountdownBeforeStart, 3 * 20L);
+            // Changed: final countdown then callback to GameManager
+            Core.schedulers.runLater(() -> {
+                Core.guiService.closeAllGZViews();
+                startFinalCountdown(() -> {
+                    if (onVotingComplete != null) {
+                        onVotingComplete.run();
+                    }
+                });
+            }, 3 * 20L);
         }, 2 * 20L);
     }
 

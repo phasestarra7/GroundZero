@@ -188,6 +188,9 @@ public class GameSession {
         mapSize = null;
         income  = null;
         gameMode = null;
+
+        world = null;
+        center = null;
     }
 
     /* =========================================================

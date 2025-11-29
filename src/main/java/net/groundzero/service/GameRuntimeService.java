@@ -44,7 +44,7 @@ public final class GameRuntimeService implements TickBus.Tickable {
             session.setRemainingTicks(left - 1);
         } else {
             // stop bus first is handled by GameManager; here we just end the game.
-            Core.game.endGame();
+            Core.game.endMatch();
             return;
         }
 

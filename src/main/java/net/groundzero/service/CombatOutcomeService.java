@@ -1,11 +1,10 @@
 package net.groundzero.service;
 
 import net.groundzero.app.Core;
-import net.groundzero.service.model.DamageKind;
+import net.groundzero.service.model.DeathCause;
 import net.groundzero.service.model.LastHit;
 import net.groundzero.util.Notifier;
 import org.bukkit.Bukkit;
-import org.bukkit.ChatColor;
 import org.bukkit.Sound;
 import org.bukkit.entity.Player;
 
@@ -14,35 +13,23 @@ import java.util.UUID;
 /**
  * Handles kill credit and scoring on death.
  * Uses Core.gameConfig.combatWindowTicks as the shared combat window.
+ *
+ * Death messages are generated based on DeathCause, not vanilla message parsing.
  */
 public final class CombatOutcomeService {
 
     /**
      * Normal death during the match.
-     * This overload does not know the vanilla death message.
-     */
-    public void handlePlayerDeath(Player victim) {
-        handlePlayerDeath(victim, null);
-    }
-
-    /**
-     * Normal death during the match, with the original vanilla death message.
-     *
      * @param victim     player who died
-     * @param vanillaMsg original vanilla death message (may be null)
+     * @param vanillaMsg ignored (kept for API compatibility)
      */
     public void handlePlayerDeath(Player victim, String vanillaMsg) {
         if (victim == null || !Core.session.state().isIngame()) return;
-        applyDeathScoring(victim.getUniqueId(), victim.getName(), vanillaMsg);
+        applyDeathScoring(victim.getUniqueId(), victim.getName());
     }
 
     /**
-     * Logout during the match. Treated as a death for scoring/kill credit,
-     * but the death message is intentionally simple:
-     *  - attacker present  -> "<victim> was killed by <attacker>"
-     *  - no attacker       -> "<victim> died"
-     *
-     * This does NOT use vanillaMsg, DamageKind, or weaponId.
+     * Logout during the match. Treated as a death for scoring/kill credit.
      */
     public void handleLogoutDeath(Player victim) {
         if (victim == null || !Core.session.state().isIngame()) return;
@@ -54,17 +41,9 @@ public final class CombatOutcomeService {
 
         // Resolve attacker within the same combat window as normal deaths.
         LastHit last = Core.damageService.peekLastHit(victimId);
-        boolean inWindow = false;
-        if (last != null) {
-            int nowTicks = Core.session.remainingTicks();
-            int dt = last.tick - nowTicks;
-            inWindow = (dt >= 0) && (dt < Core.gameConfig.combatWindowTicks);
-        }
-
-        UUID aId = (inWindow && last != null ? last.attacker : null);
+        UUID aId = resolveAttackerInWindow(last);
 
         if (aId != null) {
-            // Attacker exists: same score rules as a normal kill.
             double loss = Math.max(0.0, vScore * clamp01(Core.gameConfig.deathPenaltyPercent));
             double aScore = Core.session.getScoreMap().getOrDefault(aId, 0.0);
             double gain = Math.max(0.0, vScore * clamp01(Core.gameConfig.killStealPercent));
@@ -80,12 +59,11 @@ public final class CombatOutcomeService {
                     Sound.ENTITY_PLAYER_LEVELUP,
                     Notifier.PitchLevel.MID,
                     false,
-                    "&a" + victimName + " &fwas killed by &a" + aName,
+                    "&a" + victimName + " &flogged out and was killed by &a" + aName,
                     "&a" + aName + "&f : &e+" + fmt(gain) + " points",
                     "&a" + victimName + "&f : &c-" + fmt(loss) + " points"
             );
         } else {
-            // No attacker credited.
             double loss = Math.max(0.0, vScore * clamp01(Core.gameConfig.nonPlayerDeathPenaltyPercent));
             Core.session.getScoreMap().put(victimId, Math.max(0.0, vScore - loss));
 
@@ -94,36 +72,26 @@ public final class CombatOutcomeService {
                     Sound.BLOCK_NOTE_BLOCK_BASS,
                     Notifier.PitchLevel.MID,
                     false,
-                    "&a" + victimName + " &fdied",
+                    "&a" + victimName + " &flogged out",
                     "&a" + victimName + "&f : &c-" + fmt(loss) + " points"
             );
         }
     }
 
     /* =========================================================
-     * internal scoring for normal deaths
+     * internal scoring
      * ========================================================= */
 
-    private void applyDeathScoring(UUID victimId, String victimName, String vanillaMsg) {
+    private void applyDeathScoring(UUID victimId, String victimName) {
         double vScore = Core.session.getScoreMap().getOrDefault(victimId, 0.0);
 
-        // Resolve attacker within window (environment/mob deaths included)
         LastHit last = Core.damageService.peekLastHit(victimId);
-        boolean inWindow = false;
-        if (last != null) {
-            int nowTicks = Core.session.remainingTicks();
-            int dt = last.tick - nowTicks;
-            inWindow = (dt >= 0) && (dt < Core.gameConfig.combatWindowTicks);
-        }
-
-        UUID aId = (inWindow && last != null ? last.attacker : null);
+        UUID aId = resolveAttackerInWindow(last);
 
         if (aId != null) {
-            // Victim loses a fraction of their own score.
+            // Victim loses score, attacker gains
             double loss = Math.max(0.0, vScore * clamp01(Core.gameConfig.deathPenaltyPercent));
             double aScore = Core.session.getScoreMap().getOrDefault(aId, 0.0);
-
-            // Attacker gains a fraction of the victim's score.
             double gain = Math.max(0.0, vScore * clamp01(Core.gameConfig.killStealPercent));
 
             Core.session.getScoreMap().put(victimId, Math.max(0.0, vScore - loss));
@@ -132,8 +100,7 @@ public final class CombatOutcomeService {
             Player a = Bukkit.getPlayer(aId);
             String aName = (a != null ? a.getName() : "Unknown");
 
-            // Unified death line based on DamageKind + vanilla message (reason only).
-            String deathLine = buildDeathLine(last, vanillaMsg, victimName, aName);
+            String deathLine = buildDeathLineWithAttacker(last, victimName, aName);
 
             Core.notifier.broadcast(
                     Bukkit.getOnlinePlayers(),
@@ -145,19 +112,11 @@ public final class CombatOutcomeService {
                     "&a" + victimName + "&f : &c-" + fmt(loss) + " points"
             );
         } else {
-            // No attacker in our combat window -> environment / suicide / out-of-window damage.
+            // No attacker - environment death
             double loss = Math.max(0.0, vScore * clamp01(Core.gameConfig.nonPlayerDeathPenaltyPercent));
             Core.session.getScoreMap().put(victimId, Math.max(0.0, vScore - loss));
 
-            String deathLine;
-
-            if (last != null && last.kind == DamageKind.VANILLA && vanillaMsg != null && !vanillaMsg.isEmpty()) {
-                // Use vanilla reason, but ALWAYS strip any attacker part.
-                // Example: "X was doomed to fall by Y" -> "X was doomed to fall"
-                deathLine = stripAttackerFromVanilla(vanillaMsg);
-            } else {
-                deathLine = "&a" + victimName + " &fdied";
-            }
+            String deathLine = buildDeathLineNoAttacker(last, victimName);
 
             Core.notifier.broadcast(
                     Bukkit.getOnlinePlayers(),
@@ -171,124 +130,254 @@ public final class CombatOutcomeService {
     }
 
     /**
-     * Build a death line based on DamageKind, weaponId and vanilla message.
-     * For VANILLA:
-     *   - vanilla message attacker part is always stripped first
-     *   - then, if our combatWindow says attacker exists, we append "by <attacker>"
+     * Resolve attacker UUID if within combat window.
      */
-    private String buildDeathLine(LastHit last,
-                                  String vanillaMsg,
-                                  String victimName,
-                                  String attackerName) {
+    private UUID resolveAttackerInWindow(LastHit last) {
+        if (last == null) return null;
+
+        int nowTicks = Core.session.remainingTicks();
+        int dt = last.tick - nowTicks;
+        boolean inWindow = (dt >= 0) && (dt < Core.gameConfig.combatWindowTicks);
+
+        return inWindow ? last.attacker : null;
+    }
+
+    /* =========================================================
+     * Death message builders based on DeathCause
+     * ========================================================= */
+
+    /**
+     * Build death message when attacker exists.
+     */
+    private String buildDeathLineWithAttacker(LastHit last, String victimName, String attackerName) {
         if (last == null) {
-            return "&a" + victimName + " &fwas killed by &a" + victimName;
+            return "&a" + victimName + " &fwas killed by &a" + attackerName;
         }
 
-        DamageKind kind = (last.kind != null ? last.kind : DamageKind.OTHER);
+        DeathCause cause = (last.cause != null ? last.cause : DeathCause.UNKNOWN);
+        String weapon = formatWeaponLabel(last.weaponId);
 
-        switch (kind) {
-            case VANILLA: {
-                // 1) strip attacker from vanilla so we only keep the reason
-                String base;
-                if (vanillaMsg != null && !vanillaMsg.isEmpty()) {
-                    base = stripAttackerFromVanilla(vanillaMsg);
-                } else {
-                    base = "&a" + victimName + " &fdied";
-                }
+        return switch (cause) {
+            // ========== Custom Weapons (arrow-based) ==========
+            case ASSAULT, AUTO, SNIPER, CONCUSSIVE ->
+                    "&a" + victimName + " &fwas shot by &a" + attackerName
+                            + (weapon != null ? " &fusing &e" + weapon : "");
 
-                // 2) we are in the "attacker exists" branch, so we always append attacker here
-                if (attackerName != null && !attackerName.isEmpty()) {
-                    return base + " &7by &a" + attackerName;
-                }
-                return base;
-            }
+            // ========== RPG / Explosives ==========
+            case RPG ->
+                    "&a" + victimName + " &fwas blown up by &a" + attackerName + "&f's RPG";
 
-            case PROJECTILE: {
-                // Example: "Jonghyun was killed by Alice using Sniper Rifle"
-                String weaponLabel = formatWeaponLabel(last.weaponId);
-                return "&a" + victimName + " &fwas killed by &a" + attackerName
-                        + (weaponLabel != null ? " &fusing &e" + weaponLabel : "");
-            }
+            // ========== Aerial Support ==========
+            case AERIAL_SIMPLE, AERIAL_ARROW ->
+                    "&a" + victimName + " &fwas hit by &a" + attackerName + "&f's airstrike";
+            case AERIAL_CLUSTER ->
+                    "&a" + victimName + " &fwas shredded by &a" + attackerName + "&f's cluster strike";
+            case AERIAL_RANDOM ->
+                    "&a" + victimName + " &fwas caught in &a" + attackerName + "&f's bombardment";
+            case AERIAL_CARPET ->
+                    "&a" + victimName + " &fwas obliterated by &a" + attackerName + "&f's carpet bombing";
+            case AERIAL_HACK ->
+                    "&a" + victimName + " &fwas hacked by &a" + attackerName;
 
-            case TNT:
-                // TODO: custom TNT pipeline messaging
-                return "&a" + victimName + " &fwas blown up by &a" + attackerName + " &7(TODO TNT message)";
+            // ========== Missiles ==========
+            case MISSILE_SIMPLE ->
+                    "&a" + victimName + " &fwas hit by &a" + attackerName + "&f's missile";
+            case MISSILE_POISON ->
+                    "&a" + victimName + " &fwas poisoned by &a" + attackerName + "&f's chemical missile";
+            case MISSILE_BUNKER_BUSTER ->
+                    "&a" + victimName + " &fwas crushed by &a" + attackerName + "&f's bunker buster";
+            case MISSILE_HIGH_EXPLOSIVE ->
+                    "&a" + victimName + " &fwas vaporized by &a" + attackerName + "&f's HE missile";
+            case MISSILE_NUCLEAR ->
+                    "&a" + victimName + " &fwas nuked by &a" + attackerName;
+            case MISSILE_ABM ->
+                    "&a" + victimName + " &fwas intercepted by &a" + attackerName + "&f's ABM";
 
-            case POISON:
-                // TODO: custom DoT engine messaging
-                return "&a" + victimName + " &fsuccumbed to poison from &a" + attackerName + " &7(TODO poison message)";
+            // ========== Custom DoT ==========
+            case POISON_TICK ->
+                    "&a" + victimName + " &fsuccumbed to poison from &a" + attackerName;
 
-            case MISSILE:
-                // TODO: missile / RPG pipeline messaging
-                return "&a" + victimName + " &fwas destroyed by &a" + attackerName + "'s missile &7(TODO missile message)";
+            // ========== Vanilla Combat ==========
+            case MELEE ->
+                    "&a" + victimName + " &fwas slain by &a" + attackerName;
+            case VANILLA_PROJECTILE ->
+                    "&a" + victimName + " &fwas shot by &a" + attackerName;
 
-            case OTHER:
-            default:
-                // TODO: refine messaging for OTHER types
-                return "&a" + victimName + " &fwas killed by &a" + attackerName + " &7(TODO generic message)";
-        }
+            // ========== Vanilla Environment (with attacker credit) ==========
+            case FALL ->
+                    "&a" + victimName + " &fwas doomed to fall by &a" + attackerName;
+            case VOID ->
+                    "&a" + victimName + " &fdidn't want to live in the same world as &a" + attackerName;
+            case LAVA ->
+                    "&a" + victimName + " &ftried to swim in lava to escape &a" + attackerName;
+            case FIRE ->
+                    "&a" + victimName + " &fwas burnt to a crisp whilst fighting &a" + attackerName;
+            case FIRE_TICK ->
+                    "&a" + victimName + " &fburned to death whilst fighting &a" + attackerName;
+            case HOT_FLOOR ->
+                    "&a" + victimName + " &fwalked into the danger zone due to &a" + attackerName;
+            case CAMPFIRE ->
+                    "&a" + victimName + " &fwas burnt to a crisp whilst fighting &a" + attackerName;
+            case DROWNING ->
+                    "&a" + victimName + " &fdrowned whilst trying to escape &a" + attackerName;
+            case SUFFOCATION, CRAMMING ->
+                    "&a" + victimName + " &fsuffocated whilst fighting &a" + attackerName;
+            case EXPLOSION ->
+                    "&a" + victimName + " &fwas blown up by &a" + attackerName;
+            case CACTUS ->
+                    "&a" + victimName + " &fwas pricked to death whilst trying to escape &a" + attackerName;
+                    // normally:
+                    // "&a" + victimName + " &fwalked into a cactus whilst trying to escape &a" + attackerName;
+            case SWEET_BERRY ->
+                    // won't be called
+                    "&a" + victimName + " &fwas poked to death by a sweet berry bush whilst trying to escape &a" + attackerName;
+            case LIGHTNING ->
+                    "&a" + victimName + " &fwas struck by lightning whilst fighting &a" + attackerName;
+            case STARVATION ->
+                    "&a" + victimName + " &fstarved to death whilst fighting &a" + attackerName;
+            case VANILLA_POISON ->
+                    "&a" + victimName + " &fwas poisoned whilst fighting &a" + attackerName;
+            case WITHER ->
+                    "&a" + victimName + " &fwithered away whilst fighting &a" + attackerName;
+            case MAGIC, DRAGON_BREATH ->
+                    "&a" + victimName + " &fwas killed by magic whilst trying to escape &a" + attackerName;
+            case THORNS ->
+                    "&a" + victimName + " &fwas killed trying to hurt &a" + attackerName;
+            case FALLING_BLOCK ->
+                    "&a" + victimName + " &fwas squashed by &a" + attackerName;
+            case FLY_INTO_WALL ->
+                    "&a" + victimName + " &fexperienced kinetic energy whilst trying to escape &a" + attackerName;
+            case FREEZE ->
+                    "&a" + victimName + " &ffroze to death whilst fighting &a" + attackerName;
+            case SONIC_BOOM ->
+                    "&a" + victimName + " &fwas obliterated by a sonically-charged shriek whilst fighting &a" + attackerName;
+            case WORLD_BORDER ->
+                    "&a" + victimName + " &fleft the confines of this world whilst fighting &a" + attackerName;
+
+            // ========== Mobs / fallback ==========
+            case KILL, MOB, UNKNOWN ->
+                    "&a" + victimName + " &fwas killed by &a" + attackerName;
+            default ->
+                    "&a" + victimName + " &fwas killed by &a" + attackerName;
+        };
     }
 
-    // All vanilla substrings that introduce an attacker or second entity/item part
-    private static final String[] VANILLA_ATTACKER_PATTERNS = {
-            " by ",                                 // was slain by, was shot by, was blown up by, etc.
-            " using ",                              // using <item>, using magic
-            " whilst fighting ",
-            " while fighting ",
-            " whilst trying to escape ",
-            " while trying to escape ",
-            " to escape ",                          // tried to swim in lava to escape <player/mob>
-            " due to ",                             // due to a firework fired from <item> by <player/mob>, danger zone due to <player/mob>
-            " trying to hurt ",                     // killed trying to hurt <player/mob>
-            " didn't want to live in the same world as ",
-            " because of "                          // died because of <player/mob>
-    };
 
     /**
-     * Remove attacker-specific suffix from a vanilla death message.
-     *
+     * Build death message when no attacker (environment death).
      */
-    private String stripAttackerFromVanilla(String vanillaMsg) {
-        if (vanillaMsg == null || vanillaMsg.isEmpty()) {
-            return "&f";
+    /**
+     * Build death message when no attacker (environment death).
+     */
+    private String buildDeathLineNoAttacker(LastHit last, String victimName) {
+        if (last == null) {
+            return "&a" + victimName + " &fdied";
         }
 
-        String plain = org.bukkit.ChatColor.stripColor(vanillaMsg);
+        DeathCause cause = (last.cause != null ? last.cause : DeathCause.UNKNOWN);
 
-        int cut = -1;
-        for (String pat : VANILLA_ATTACKER_PATTERNS) {
-            int idx = plain.indexOf(pat);
-            if (idx >= 0 && (cut == -1 || idx < cut)) {
-                cut = idx;
-            }
-        }
+        return switch (cause) {
+            // ========== Fall / void ==========
+            case FALL ->
+                    "&a" + victimName + " &ffell from a high place";
+            case VOID ->
+                    "&a" + victimName + " &ffell out of the world";
 
-        if (cut >= 0) {
-            plain = plain.substring(0, cut);
-        }
+            // ========== Fire / lava / hot floor / campfire ==========
+            case LAVA ->
+                    "&a" + victimName + " &ftried to swim in lava";
+            case FIRE ->
+                    "&a" + victimName + " &fwent up in flames";
+            case FIRE_TICK ->
+                    "&a" + victimName + " &fburned to death";
+            case HOT_FLOOR ->
+                    "&a" + victimName + " &fdiscovered the floor was lava";
+            case CAMPFIRE ->
+                    "&a" + victimName + " &fburned to death";
 
-        return "&f" + plain;
+            // ========== Water ==========
+            case DROWNING ->
+                    "&a" + victimName + " &fdrowned";
+
+            // ========== Suffocation / cramming ==========
+            case SUFFOCATION ->
+                    "&a" + victimName + " &fsuffocated in a wall";
+            case CRAMMING ->
+                    "&a" + victimName + " &fwas squished too much";
+
+            // ========== Explosions ==========
+            case EXPLOSION ->
+                    "&a" + victimName + " &fblew up";
+
+            // ========== Contact ==========
+            case CACTUS ->
+                    "&a" + victimName + " &fwas pricked to death";
+            case SWEET_BERRY ->
+                    "&a" + victimName + " &fwas poked to death by a sweet berry bush";
+
+            // ========== Lightning ==========
+            case LIGHTNING ->
+                    "&a" + victimName + " &fwas struck by lightning";
+
+            // ========== Starvation ==========
+            case STARVATION ->
+                    "&a" + victimName + " &fstarved to death";
+
+            // ========== Status Effects ==========
+            case VANILLA_POISON ->
+                    "&a" + victimName + " &fwas poisoned";
+            case WITHER ->
+                    "&a" + victimName + " &fwithered away";
+            case MAGIC ->
+                    "&a" + victimName + " &fwas killed by magic";
+            case DRAGON_BREATH ->
+                    "&a" + victimName + " &fwas roasted in dragon breath";
+
+            // ========== Misc ==========
+            case THORNS ->
+                    "&a" + victimName + " &fwas killed by thorns";
+            case FALLING_BLOCK ->
+                    "&a" + victimName + " &fwas squashed by a falling block";
+            case FLY_INTO_WALL ->
+                    "&a" + victimName + " &fexperienced kinetic energy";
+            case FREEZE ->
+                    "&a" + victimName + " &ffroze to death";
+            case SONIC_BOOM ->
+                    "&a" + victimName + " &fwas obliterated by a sonically-charged shriek";
+            case WORLD_BORDER ->
+                    "&a" + victimName + " &fleft the confines of this world";
+            case KILL ->
+                    "&a" + victimName + " &fwas removed from the game";
+
+            // ========== Mobs ==========
+            case MOB ->
+                    "&a" + victimName + " &fwas killed";
+
+            // ========== Fallback ==========
+            default ->
+                    "&a" + victimName + " &fdied";
+        };
     }
 
+
+    /* =========================================================
+     * Helpers
+     * ========================================================= */
+
     /**
-     * Lightweight weaponId → label formatter.
-     * For now we just prettify the internal id (gz_rifle_basic → "Rifle Basic").
-     * Later you can plug this into ItemRegistry or custom display-name resolver.
+     * WeaponId → display label formatter.
+     * "gz_sniper" → "Sniper"
      */
     private String formatWeaponLabel(String weaponId) {
         if (weaponId == null || weaponId.isEmpty()) return null;
 
         String id = weaponId;
-
-        // Optional prefix strip (e.g. "gz_")
         if (id.startsWith("gz_")) {
             id = id.substring(3);
         }
 
-        // Replace separators with spaces: "rifle_basic-iron" → "rifle basic iron"
         id = id.replace('_', ' ').replace('-', ' ');
 
-        // Capitalize each word
         String[] parts = id.split("\\s+");
         StringBuilder sb = new StringBuilder();
         for (String part : parts) {

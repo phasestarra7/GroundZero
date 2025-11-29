@@ -1,9 +1,9 @@
 package net.groundzero.service;
 
 import net.groundzero.app.Core;
-import net.groundzero.game.GameState;
 import net.groundzero.service.tick.TickBus;
 import org.bukkit.Bukkit;
+import org.bukkit.entity.Player;
 
 import java.util.Map;
 import java.util.Set;
@@ -64,6 +64,10 @@ public final class CombatIdleService implements TickBus.Tickable {
     /** Unregister and clear state (idempotent). */
     public void stop() {
         if (!running) return;
+        reset();
+    }
+
+    public void reset() {
         running = false;
         Core.tickBus.unregister(this);
         idleTicks.clear();
@@ -82,11 +86,12 @@ public final class CombatIdleService implements TickBus.Tickable {
         if (victim != null) {
             idleTicks.put(victim, negGrace);
             warned.remove(victim);
-            // Do not reset appliedStep here; penalties persist over long idles.
+            appliedStep.remove(victim);
         }
         if (attacker != null) {
             idleTicks.put(attacker, negGrace);
             warned.remove(attacker);
+            appliedStep.remove(attacker);
         }
     }
 
@@ -113,7 +118,10 @@ public final class CombatIdleService implements TickBus.Tickable {
             if (prev < warnAt && now >= warnAt) {
                 if (!warned.contains(id)) {
                     warned.add(id);
-                    Core.notifier.message(Bukkit.getPlayer(id), true, "WARNING");
+                    Player p1 = Bukkit.getPlayer(id);
+                    if (p1 != null && p1.isOnline()) {
+                        Core.notifier.message(p1, true, "WARNING");
+                    }
                     // TODO: Optional UI feedback (action bar / sound) to the player.
                     // e.g., Core.notifier.sound(id, Sound.BLOCK_NOTE_BLOCK_PLING, Notifier.PitchLevel.ERR);
                 }
@@ -135,7 +143,10 @@ public final class CombatIdleService implements TickBus.Tickable {
                         double burn = Math.max(0.0, cur * (p * eff));
                         double next = Math.max(0.0, cur - burn);
                         Core.session.getScoreMap().put(id, next);
-                        Core.notifier.message(Bukkit.getPlayer(id), true, stepIndex + " You lost " + burn);
+                        Player p1 = Bukkit.getPlayer(id);
+                        if (p1 != null && p1.isOnline()) {
+                            Core.notifier.message(Bukkit.getPlayer(id), true, stepIndex + " You lost " + burn);
+                        }
                     }
                     appliedStep.put(id, stepIndex);
                 }

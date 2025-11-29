@@ -1,8 +1,8 @@
+// game/GameManager.java (전체 교체)
 package net.groundzero.game;
 
 import net.groundzero.app.Core;
-import net.groundzero.ui.options.MapSizeOption;
-import net.groundzero.ui.options.GameModeOption;
+import net.groundzero.ui.options.*;
 import net.groundzero.util.Notifier;
 import org.bukkit.*;
 import org.bukkit.attribute.Attribute;
@@ -15,142 +15,114 @@ import java.util.UUID;
 
 /**
  * Central game controller.
- * Start → voting → running → end → IDLE
+ *
+ * Lifecycle:
+ *   IDLE -> (start) -> PREGAME (voting) -> RUNNING -> ENDED -> IDLE
+ *
+ * Cancel/Stop methods:
+ *   - cancelPregame(): Cancel during pregame (voting/countdown). Resets pregame-only data.
+ *   - endMatch(): Normal end after 20 min. Shows results, then resets all after delay.
+ *   - forceStop(): Force stop from any state. Used by /gz test or plugin disable.
  */
 public class GameManager {
 
     private final GameSession session = new GameSession();
     private static final Random RNG = new Random();
 
-    // getter will be one-liner on your side
     public GameSession session() { return session; }
 
     public GameManager() {}
 
     /* =========================================================
-       PUBLIC ENTRYPOINT
+       PUBLIC ENTRYPOINTS
        ========================================================= */
 
     /**
-     * Start the game flow from IDLE.
+     * Start game flow from IDLE.
      */
     public void start(Player p) {
         GameState st = session.state();
 
         if (st == GameState.IDLE) {
-            if (p != null) startFromIdle(p); // actually performs start
-            // text/sound feedback is in startFromIdle;
-            return;
-        } else if (st.isPregame()) {
-            if (p != null)
-                Core.notifier.message(p, true, "The game is already starting");
+            if (p != null) startFromIdle(p);
             return;
         }
-        if (p != null)
-            Core.notifier.message(p, true, "The game is already running");
+
+        if (st.isPregame()) {
+            if (p != null) Core.notifier.message(p, true, "The game is already starting");
+            return;
+        }
+
+        if (p != null) Core.notifier.message(p, true, "The game is already running");
     }
 
     /**
-     * Soft cancel: called by player quit / command during pre-game.
-     * If the game is in pregame, we run cancel();
-     * If already running, we just notify "already running".
+     * Cancel during pregame. Called by player quit or /gz cancel.
+     * Only works during pregame states.
      */
-    public void tryCancel(Player p) {
+    public void cancelPregame(Player requester) {
         GameState st = session.state();
 
         if (st == GameState.IDLE) {
-            if (p != null)
-                Core.notifier.message(p, true, "There is no game starting");
-            return;
-        } else if (st.isPregame()) {
-            Core.notifier.broadcast(
-                    Bukkit.getOnlinePlayers(),
-                    Sound.BLOCK_ANVIL_LAND,
-                    Notifier.PitchLevel.LOW,
-                    true,
-                    "GroundZero canceled by &a" + p.getName());
-            cancel(); // actually performs cleanup
+            if (requester != null) {
+                Core.notifier.message(requester, true, "There is no game to cancel");
+            }
             return;
         }
 
-        if (p != null)
-            Core.notifier.message(p, true, "The game is already running");
+        if (st.isPregame()) {
+            if (requester != null) {
+                Core.notifier.broadcast(
+                        Bukkit.getOnlinePlayers(),
+                        Sound.BLOCK_ANVIL_LAND,
+                        Notifier.PitchLevel.LOW,
+                        true,
+                        "GroundZero canceled by &a" + requester.getName()
+                );
+            }
+            doCancelPregame();
+            return;
+        }
+
+        if (requester != null) {
+            Core.notifier.message(requester, true, "Cannot cancel - game is already running");
+        }
     }
 
     /**
-     * Hard cancel: force stop everything regardless of state.
-     * Used by admin command or plugin shutdown.
+     * Normal match end. Called when 20 min timer expires.
+     * Shows results, then cleans up after delay.
      */
-    public void forceCancel(Player sender) {
-        // Stop TickBus-bound services if they were started.
-        if (Core.gameRuntimeService != null) Core.gameRuntimeService.stop();
-        if (Core.scoreboardService != null) Core.scoreboardService.stop();
-        if (Core.combatIdleService != null) Core.combatIdleService.stop();
-        if (Core.tickBus != null) Core.tickBus.stop();
-
-        // Cancel all scheduled jobs (respawn timers, vote countdowns, etc.).
-        Core.schedulers.cancelAll();
-
-        // Combat last hits and runtime numbers only matter within a single match.
-        Core.damageService.clearAllLastHits();
-        Core.session.clearRuntimeAndOptions();
-        Core.playerService.resetDeathState();
-
-        // Restore world border / gamerules / player state.
-        restoreEnvironmentToDefault();
-
-        // Always land back on IDLE, with everyone in spectator lobby state.
-        session.resetToAllSpectators();
-        session.setState(GameState.IDLE);
-    }
-
-    /**
-     * Cancel a starting game (pre-game only).
-     * This MUST NOT go through endGame(), because pre-game usually has:
-     * - no scoreboard
-     * - no runtime tick
-     * - only scheduled votes / countdowns
-     */
-    private void cancel() {
-        session.setState(GameState.IDLE);
-
-        // Everyone back to spectators in the lobby.
-        session.resetToAllSpectators();
-
-        // Stop countdowns / vote timers / GUI-only schedulers.
-        Core.schedulers.cancelAll();
-
-        // Close vote/setup GUIs.
-        Core.guiService.closeAllGZViews();
-
-        // Clear runtime numbers and options so the next start is clean.
-        Core.session.clearRuntimeAndOptions();
-    }
-
-    /**
-     * Normal match end — calls forceCancel after delay.
-     */
-    public void endGame() {
+    public void endMatch() {
         GameState st = session.state();
 
-        if (!st.isIngame()) { cancel(); return; } // should not be here btw
+        if (!st.isIngame()) {
+            // Shouldn't happen, but fallback
+            forceStop(null);
+            return;
+        }
 
         session.setState(GameState.ENDED);
-        Core.guiService.closeAllGZViews();
 
+        // Stop tick-based services immediately (no more ticks during ENDED)
+        stopIngameServices();
+
+        // Cancel any pending tasks (respawn timers, etc.)
+        Core.schedulers.cancelAll();
+
+        // Broadcast game over
         Core.notifier.broadcast(
                 Bukkit.getOnlinePlayers(),
                 Sound.ENTITY_ENDER_DRAGON_GROWL,
                 Notifier.PitchLevel.MID,
                 false,
                 "Game Over"
-        ); // TODO : send title or smth
+        );
 
+        // Put all participants into spectator mode
         for (UUID id : session.getParticipantsView()) {
             Player p = Bukkit.getPlayer(id);
             if (p == null || !p.isOnline()) continue;
-
-            // reset player inv and xp, then make them spectator
             p.getInventory().clear();
             p.setExp(0f);
             p.setLevel(0);
@@ -158,197 +130,248 @@ public class GameManager {
             p.setGameMode(GameMode.SPECTATOR);
         }
 
-        // Stop TickBus-bound services that are only meaningful during RUNNING.
+        // Print scores after 1 second
+        Core.schedulers.runLater(this::printMatchResults, 20L);
+
+        // Full cleanup after delay
+        Core.schedulers.runLater(this::doFullCleanup, Core.gameConfig.delayTicks);
+    }
+
+    /**
+     * Force stop from any state. Used by /gz test or plugin disable.
+     * Immediately cleans everything.
+     */
+    public void forceStop(Player sender) {
+        // Stop all tick services
+        stopIngameServices();
+
+        // Cancel all scheduled tasks
+        Core.schedulers.cancelAll();
+
+        // Reset all services
+        resetAllServices();
+
+        // Restore world
+        restoreEnvironmentToDefault();
+
+        // Back to IDLE
+        session.setState(GameState.IDLE);
+        session.resetToAllSpectators();
+
+        if (sender != null) {
+            Core.notifier.message(sender, false, "Game force stopped");
+        }
+    }
+
+    // Legacy method name for compatibility
+    public void tryCancel(Player p) {
+        cancelPregame(p);
+    }
+
+    // Legacy method name for compatibility  
+    public void forceCancel(Player p) {
+        forceStop(p);
+    }
+
+    /* =========================================================
+       INTERNAL CANCEL/CLEANUP METHODS
+       ========================================================= */
+
+    /**
+     * Cancel pregame only. Resets pregame-specific data.
+     */
+    private void doCancelPregame() {
+        // Cancel vote timers, countdowns
+        Core.schedulers.cancelAll();
+
+        // Close vote GUIs
+        Core.guiService.closeAllGZViews();
+
+        // Reset pregame services
+        Core.voteService.reset();
+        Core.session.clearRuntimeAndOptions();
+
+        // Back to IDLE
+        session.setState(GameState.IDLE);
+        session.resetToAllSpectators();
+    }
+
+    /**
+     * Stop tick-based services that run during ingame.
+     */
+    private void stopIngameServices() {
         if (Core.gameRuntimeService != null) Core.gameRuntimeService.stop();
         if (Core.scoreboardService != null) Core.scoreboardService.stop();
         if (Core.combatIdleService != null) Core.combatIdleService.stop();
         if (Core.tickBus != null) Core.tickBus.stop();
+    }
 
-        // Cancel any remaining scheduled jobs (respawn timers, etc.).
-        Core.schedulers.cancelAll();
-        // Clear combat last hits – they matter only within a running match.
-        Core.damageService.clearAllLastHits();
-        // clear death state
-        Core.playerService.resetDeathState();
+    /**
+     * Reset all services that hold session data.
+     */
+    private void resetAllServices() {
+        // Pregame services
+        Core.voteService.reset();
+        Core.guiService.closeAllGZViews();
 
-        // print, and then go to IDLE (prep for next game)
-        Core.schedulers.runLater(() -> {
-            for (UUID id : session.getParticipantsView()) {
-                Player p = Bukkit.getPlayer(id);
-                if (p == null) continue;
+        // Ingame services
+        Core.damageService.reset();
+        Core.combatIdleService.reset();
+        Core.playerService.reset();
+        Core.scoreboardService.reset();
 
-                double score = session.getScoreMap().getOrDefault(id, 0.0);
-                Core.notifier.broadcast(
-                        Bukkit.getOnlinePlayers(),
-                        null, null, false,
-                        p.getName() + " : " + String.format("%.1f", score)
-                ); // TODO : print / now testing, so not sorted
-            }
-        }, 20L);
-        Core.schedulers.runLater(() -> {
-            // print something more if needed
-        }, 40L);
-        Core.schedulers.runLater(() -> {
-            for(Player p : Bukkit.getOnlinePlayers()) {
-                if (p == null || !p.isOnline()) continue;
+        // Session data
+        Core.session.clearRuntimeAndOptions();
+    }
 
-                p.setFoodLevel(20);
-                p.setSaturation(20f);
-                p.setExhaustion(0f);
-                p.setHealth(p.getAttribute(Attribute.GENERIC_MAX_HEALTH).getValue());
-                p.setGameMode(GameMode.SURVIVAL);
-                // don't really care if they die from drops, the game's over
-            }
-            // Clear per-player runtime values and vote options.
-            Core.session.clearRuntimeAndOptions();
+    /**
+     * Full cleanup after ENDED state. Returns to IDLE.
+     */
+    private void doFullCleanup() {
+        // Reset all players to survival with full health
+        for (Player p : Bukkit.getOnlinePlayers()) {
+            if (p == null || !p.isOnline()) continue;
+            p.setFoodLevel(20);
+            p.setSaturation(20f);
+            p.setExhaustion(0f);
+            p.setHealth(p.getAttribute(Attribute.GENERIC_MAX_HEALTH).getValue());
+            p.setGameMode(GameMode.SURVIVAL);
+        }
 
-            // Finally return to IDLE, ready for the next game.
-            restoreEnvironmentToDefault();
-            session.setState(GameState.IDLE);
-            session.resetToAllSpectators();
-        }, Core.gameConfig.delayTicks);
+        // Reset all services
+        resetAllServices();
+
+        // Restore world settings
+        restoreEnvironmentToDefault();
+
+        // Back to IDLE
+        session.setState(GameState.IDLE);
+        session.resetToAllSpectators();
+    }
+
+    /**
+     * Print match results (called during ENDED).
+     */
+    private void printMatchResults() {
+        // TODO: Sort by score, format nicely
+        for (UUID id : session.getParticipantsView()) {
+            Player p = Bukkit.getPlayer(id);
+            if (p == null) continue;
+            double score = session.getScoreMap().getOrDefault(id, 0.0);
+            Core.notifier.broadcast(
+                    Bukkit.getOnlinePlayers(),
+                    null, null, false,
+                    p.getName() + " : " + String.format("%.1f", score)
+            );
+        }
     }
 
     /* =========================================================
-       INTERNAL FLOWS
+       START FLOW
        ========================================================= */
 
     private void startFromIdle(Player sender) {
-        // 1) collect participants
+        // 1) Collect participants from current spectators
         session.snapshotParticipantsFromSpectators();
 
-        // 2) world/center detect
-        if (!session.captureWorldAndCenterFromParticipants()) {
-            Core.notifier.broadcast(
-                Bukkit.getOnlinePlayers(),
-                Sound.BLOCK_ANVIL_LAND,
-                Notifier.PitchLevel.LOW,
-                true,
-                "GroundZero start failed",
-                "All players should be in the same world"
-            );
-            session.resetToAllSpectators(); // failed to start, reset to null
+        if (session.getParticipantsView().isEmpty()) {
+            Core.notifier.message(sender, true, "No players to start with");
+            session.resetToAllSpectators();
             return;
         }
 
-        // 3) announce players
+        // 2) Capture world and center from participants
+        if (!session.captureWorldAndCenterFromParticipants()) {
+            Core.notifier.message(sender, true, "Players must be in the same world");
+            session.resetToAllSpectators();
+            return;
+        }
+
+        // 3) Notify start
         Core.notifier.broadcast(
-            Bukkit.getOnlinePlayers(),
-            null,
-            null,
-            false,
-            "Participants: " + session.namesOfParticipants()
-    );
-        // 4) go to first phase
-        gotoCountdownBeforeVoting();
-    }
+                Bukkit.getOnlinePlayers(),
+                Sound.ENTITY_EXPERIENCE_ORB_PICKUP,
+                Notifier.PitchLevel.HIGH,
+                false,
+                "GroundZero starting",
+                "Participants: " + session.namesOfParticipants()
+        );
 
-    /* =========================================================
-       PHASE JUMPS (used by VoteService)
-       ========================================================= */
-
-    private void gotoCountdownBeforeVoting() {
+        // 4) Begin voting flow
         session.setState(GameState.COUNTDOWN_BEFORE_VOTING);
-        Core.voteService.startPreVoteCountdown(this::gotoVotingMapSize);
+        Core.voteService.startVoting(this::onVotingComplete);
     }
 
-    public void gotoVotingMapSize() {
-        session.setState(GameState.VOTING_MAP_SIZE);
-        Core.voteService.startMapSizeVote();
-    }
+    /**
+     * Called by VoteService when all votes are done.
+     */
+    private void onVotingComplete() {
+        GameState st = session.state();
+        if (!st.isPregame()) return;
 
-    public void gotoVotingIncome() {
-        session.setState(GameState.VOTING_INCOME_MULTIPLIER);
-        Core.voteService.startIncomeVote();
-    }
-
-    public void gotoVotingGameMode() {
-        session.setState(GameState.VOTING_GAME_MODE);
-        Core.voteService.startGameModeVote();
-    }
-
-    public void gotoCountdownBeforeStart() {
-        session.setState(GameState.COUNTDOWN_BEFORE_START);
-        Core.guiService.closeAllGZViews();
-        Core.voteService.startFinalCountdown(this::gotoRunning);
-    }
-
-    /* =========================================================
-       RUNNING
-       ========================================================= */
-
-    private void gotoRunning() {
-
-        // 1) Apply world settings based on chosen option (mapsize)
+        // Apply voted options
+        applyVoteOptionToParticipants();
         applyWorldSettings();
 
-        // 2) Apply player settings based on chosen option (income)
-        applyVoteOptionToParticipants();
+        // Start actual game
+        startActualGame();
+    }
 
-        // 3) Branch by game mode.
-        GameModeOption mode = session.gameMode();
-        if (mode == null) {
-            // Fallback: treat as STANDARD.
-            startStandardMode();
+    // originally was setUpGame()
+    private void startActualGame() {
+        GameState st = session.state();
+        if (!st.isPregame()) {
+            session.resetToAllSpectators();
             return;
         }
+
+        GameModeOption mode = session.gameMode();
+        if (mode == null) mode = GameModeOption.STANDARD;
+
         switch (mode) {
             case STANDARD:
-                startStandardMode();
-                break;
-
-            // TODO: add more modes here (HARDCORE, SNIPER_ONLY, etc.)
-
             default:
-                // Unknown mode → fallback to STANDARD behavior for safety.
                 startStandardMode();
                 break;
         }
     }
 
     private void startStandardMode() {
-        // set match time
+        // Set match time
         session.setRemainingTicks(Core.gameConfig.matchDurationTicks);
 
-        // start services bound to TickBus
-        Core.gameRuntimeService.start(session);  // time, income
-        Core.scoreboardService.start(session);   // UI-only
-        Core.combatIdleService.start();          // subscriber persists
+        // Start tick-based services
+        Core.gameRuntimeService.start(session);
+        Core.scoreboardService.start(session);
+        Core.combatIdleService.start();
         Core.tickBus.start();
 
-        // check participants, tp
+        // Setup participants
         for (UUID id : session.getParticipantsView()) {
             Player p = Bukkit.getPlayer(id);
             if (p == null || !p.isOnline()) continue;
-
-            // clear inv, xp
             p.getInventory().clear();
             p.setExp(0f);
             p.setLevel(0);
             p.setTotalExperience(0);
-
-            // then spawn them(tp)
             setSurvivalAndTeleportRandomly(id);
         }
-        // check spectators, tp
+
+        // Setup spectators
         for (UUID id : session.getSpectatorsView()) {
             Player p = Bukkit.getPlayer(id);
             if (p == null || !p.isOnline()) continue;
-
-            // clear inv, xp
             p.getInventory().clear();
             p.setExp(0f);
             p.setLevel(0);
             p.setTotalExperience(0);
-
-            // spawn participants(tp)
             setSpectatorAndTeleportToCenter(id);
         }
 
-        // give loadouts
-        Core.loadoutService.giveInitialLoadouts(session.getParticipantsView());
+        // Give loadouts
+        //Core.loadoutService.giveInitialLoadouts(session.getParticipantsView());//TODO
 
-        // and change state after everything's done
+        // Change state
         session.setState(GameState.RUNNING);
 
         Core.notifier.broadcast(
@@ -370,7 +393,6 @@ public class GameManager {
        ========================================================= */
 
     private void applyWorldSettings() {
-        // world border
         World w = session.world();
         if (w == null) return;
 
@@ -383,10 +405,10 @@ public class GameManager {
             }
         }
 
-        // world rules
         w.setGameRule(GameRule.BLOCK_EXPLOSION_DROP_DECAY, false);
         w.setGameRule(GameRule.DISABLE_ELYTRA_MOVEMENT_CHECK, true);
         w.setGameRule(GameRule.DO_FIRE_TICK, false);
+        w.setGameRule(GameRule.DO_IMMEDIATE_RESPAWN, true);
         w.setGameRule(GameRule.DO_WEATHER_CYCLE, false);
         w.setGameRule(GameRule.FALL_DAMAGE, false);
         w.setGameRule(GameRule.KEEP_INVENTORY, true);
@@ -402,16 +424,15 @@ public class GameManager {
     }
 
     private void restoreEnvironmentToDefault() {
-        // a) world border back
-        Core.game.session().restoreOriginalBorder();
+        session.restoreOriginalBorder();
 
         World w = session.world();
         if (w == null) return;
 
-        // world rules
         w.setGameRule(GameRule.BLOCK_EXPLOSION_DROP_DECAY, true);
         w.setGameRule(GameRule.DISABLE_ELYTRA_MOVEMENT_CHECK, false);
         w.setGameRule(GameRule.DO_FIRE_TICK, true);
+        w.setGameRule(GameRule.DO_IMMEDIATE_RESPAWN, false);
         w.setGameRule(GameRule.DO_WEATHER_CYCLE, true);
         w.setGameRule(GameRule.FALL_DAMAGE, true);
         w.setGameRule(GameRule.KEEP_INVENTORY, false);
@@ -427,25 +448,20 @@ public class GameManager {
     }
 
     private void applyVoteOptionToParticipants() {
-        // Use final income vote result stored in session.
         double mul = 1.0;
         if (session.income() != null) {
             mul = session.income().multiplier;
         }
 
         for (UUID id : session.getParticipantsView()) {
-            // Initialize base plasma / score for this match.
             session.getPlasmaMap().put(id, Core.gameConfig.basePlasma);
             session.getScoreMap().put(id, Core.gameConfig.baseScore);
-
-            // Initialize per-player income with chosen multiplier.
             double perPlayerIncome = Core.gameConfig.baseIncomePerSecond * mul;
             session.getIncomeMap().put(id, perPlayerIncome);
         }
     }
 
     public void setSurvivalAndTeleportRandomly(UUID id) {
-        // ready participants whatever their gamemode, status is
         Player p = Bukkit.getPlayer(id);
         if (p == null || !p.isOnline()) return;
 
@@ -455,7 +471,6 @@ public class GameManager {
         p.setHealth(p.getAttribute(Attribute.GENERIC_MAX_HEALTH).getValue());
         p.setGameMode(GameMode.SURVIVAL);
 
-        // tp
         World world = session.world();
         Location center = session.center();
         MapSizeOption sizeOpt = session.mapSize();
@@ -473,12 +488,7 @@ public class GameManager {
         int highest = world.getHighestBlockYAt((int) Math.floor(targetX), (int) Math.floor(targetZ));
         double targetY = highest + 100.0;
 
-        Location dest = new Location(
-                world,
-                targetX + 0.5,
-                targetY,
-                targetZ + 0.5
-        );
+        Location dest = new Location(world, targetX + 0.5, targetY, targetZ + 0.5);
 
         p.teleport(dest);
         p.addPotionEffect(new PotionEffect(
@@ -508,12 +518,7 @@ public class GameManager {
         int highest = world.getHighestBlockYAt((int) Math.floor(targetX), (int) Math.floor(targetZ));
         double targetY = highest + 100.0;
 
-        Location dest = new Location(
-                world,
-                targetX + 0.5,
-                targetY,
-                targetZ + 0.5
-        );
+        Location dest = new Location(world, targetX + 0.5, targetY, targetZ + 0.5);
 
         p.teleport(dest);
     }

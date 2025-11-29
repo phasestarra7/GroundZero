@@ -23,7 +23,11 @@ public final class PlayerService {
 
     public PlayerService() {}
 
-    public void resetDeathState() {
+    public void reset() {
+        // Cancel all pending respawn tasks
+        for (BukkitTask task : respawnTasks.values()) {
+            if (task != null) Core.schedulers.cancelTask(task);
+        }
         deadPlayers.clear();
         respawnTasks.clear();
     }

@@ -42,6 +42,10 @@ public class ScoreboardService implements TickBus.Tickable {
 
     public void stop() {
         if (!running) return;
+        reset();
+    }
+
+    public void reset() {
         running = false;
         Core.tickBus.unregister(this);
         this.session = null;

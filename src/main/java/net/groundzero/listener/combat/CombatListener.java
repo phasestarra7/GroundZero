@@ -5,7 +5,7 @@ import net.groundzero.listener.BaseListener;
 import net.groundzero.service.ProjectileService;
 import net.groundzero.service.ProjectileService.Payload;
 import net.groundzero.service.model.DamageKind;
-import org.bukkit.Bukkit;
+import net.groundzero.service.model.DeathCause;
 import org.bukkit.entity.Arrow;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
@@ -14,44 +14,32 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.ProjectileHitEvent;
 import org.bukkit.projectiles.ProjectileSource;
 
 import java.util.UUID;
 
-/**
- * CombatListener:
- * - Distinguish vanilla vs our projectiles.
- * - Our projectiles: cancel vanilla damage and route to DamageService.
- * - Vanilla damage: let it flow, but record LastHit for kill credit pipeline.
- */
 public final class CombatListener extends BaseListener implements Listener {
 
-    // --- Our projectile entity or block collision: clean up if needed ---
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onProjectileHit(ProjectileHitEvent e) {
         if (!(e.getEntity() instanceof Arrow arrow)) return;
         if (!ProjectileService.isOurArrow(arrow)) return;
-
-        // Use Core.schedulers for consistency
         Core.schedulers.runLater(arrow::remove, 1L);
     }
 
-    // --- central damage router ---
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onEntityDamageByEntity(EntityDamageByEntityEvent e) {
         final Entity victimEnt = e.getEntity();
         if (!(victimEnt instanceof LivingEntity victim)) return;
-        if (victim instanceof LivingEntity le && Core.damageService.isCustomHit(le)) return;
+        if (victim instanceof LivingEntity le && Core.damageService.isProcessingDamage(le)) return;
 
         // 1) Projectile path
         if (e.getDamager() instanceof Arrow arrow) {
             if (ProjectileService.isOurArrow(arrow)) {
-                // OUR arrow: cancel vanilla and route to DamageService
                 final Payload payload = ProjectileService.readArrowPayload(arrow);
-
                 if (payload == null) {
-                    // corrupted tag → just remove safely
                     Core.schedulers.runLater(arrow::remove, 1L);
                     return;
                 }
@@ -59,51 +47,109 @@ public final class CombatListener extends BaseListener implements Listener {
                 e.setCancelled(true);
 
                 final UUID attackerId = payload.owner();
-                // Optional: attacker Player, may be null if offline
+                DeathCause cause = mapWeaponIdToCause(payload.weaponId());
 
-                // Victim is player → record for kill credit
                 if (victim instanceof Player) {
                     Core.damageService.recordHit(
                             victim.getUniqueId(),
-                            attackerId,                 // keep UUID even if attacker is offline
-                            DamageKind.PROJECTILE,      // or ARROW if you split kinds
+                            attackerId,
+                            DamageKind.PROJECTILE,
+                            cause,
                             payload.weaponId(),
                             payload.baseDamage()
                     );
                 }
 
-                // Apply our custom projectile damage (prefer UUID-first API)
-                // Recommend: applyProjectileDamage(UUID attackerId, LivingEntity victim, Payload payload)
                 Core.damageService.applyProjectileDamage(attackerId, victim, payload);
-
                 Core.schedulers.runLater(arrow::remove, 1L);
                 return;
             } else {
-                // VANILLA arrow: only P2P should count for kill credit
+                // VANILLA arrow
                 ProjectileSource src = arrow.getShooter();
                 if (src instanceof Player attackerPlayer && victim instanceof Player) {
+                    DeathCause cause = Core.damageService.mapVanillaCause(e.getCause(), true);
                     Core.damageService.recordHit(
                             victim.getUniqueId(),
                             attackerPlayer.getUniqueId(),
                             DamageKind.VANILLA,
+                            cause,
                             null,
                             e.getFinalDamage()
                     );
                 }
-                return; // let vanilla damage proceed
+                return;
             }
         }
 
-        // 2) Non-projectile entity damage (melee, mob hits, etc.)
-        // Only P2P should record hit for kill credit; otherwise ignore.
+        // 2) Melee P2P
         if (e.getDamager() instanceof Player attackerP && victim instanceof Player) {
+            DeathCause cause = Core.damageService.mapVanillaCause(e.getCause(), true);
             Core.damageService.recordHit(
                     victim.getUniqueId(),
                     attackerP.getUniqueId(),
                     DamageKind.VANILLA,
+                    cause,
+                    null,
+                    e.getFinalDamage()
+            );
+        } else if (victim instanceof Player && !(e.getDamager() instanceof Player)) {
+            // Mob → Player (기록은 하되 attacker는 null, MOB cause로)
+            DeathCause cause = DeathCause.MOB;
+            Core.damageService.recordHit(
+                    victim.getUniqueId(),
+                    null,  // attacker 없음
+                    DamageKind.VANILLA,
+                    cause,
                     null,
                     e.getFinalDamage()
             );
         }
+    }
+
+    /**
+     * Handle environment damage (fall, lava, fire, etc.)
+     */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onEntityDamage(EntityDamageEvent e) {
+        if (e instanceof EntityDamageByEntityEvent) return;
+        if (!(e.getEntity() instanceof Player victim)) return;
+        if (Core.damageService.isProcessingDamage(victim)) return;
+        if (!Core.session.state().isIngame()) return;
+
+        DeathCause cause = Core.damageService.mapVanillaCause(e.getCause(), false);
+        Core.damageService.recordHit(
+                victim.getUniqueId(),
+                null,
+                DamageKind.VANILLA,
+                cause,
+                null,
+                e.getFinalDamage()
+        );
+    }
+
+    private DeathCause mapWeaponIdToCause(String weaponId) {
+        if (weaponId == null || weaponId.isEmpty()) return DeathCause.UNKNOWN;
+        String lower = weaponId.toLowerCase();
+
+        if (lower.contains("assault")) return DeathCause.ASSAULT;
+        if (lower.contains("auto")) return DeathCause.AUTO;
+        if (lower.contains("sniper")) return DeathCause.SNIPER;
+        if (lower.contains("concussive")) return DeathCause.CONCUSSIVE;
+        if (lower.contains("rpg")) return DeathCause.RPG;
+        if (lower.contains("smoke")) return DeathCause.SMOKE; // just placeholder
+        if (lower.contains("aerial_simple")) return DeathCause.AERIAL_SIMPLE;
+        if (lower.contains("aerial_arrow")) return DeathCause.AERIAL_ARROW;
+        if (lower.contains("aerial_cluster")) return DeathCause.AERIAL_CLUSTER;
+        if (lower.contains("aerial_random")) return DeathCause.AERIAL_RANDOM;
+        if (lower.contains("aerial_carpet")) return DeathCause.AERIAL_CARPET;
+        if (lower.contains("aerial_hack")) return DeathCause.AERIAL_HACK;
+        if (lower.contains("missile_simple")) return DeathCause.MISSILE_SIMPLE;
+        if (lower.contains("missile_poison")) return DeathCause.MISSILE_POISON;
+        if (lower.contains("missile_bunker")) return DeathCause.MISSILE_BUNKER_BUSTER;
+        if (lower.contains("missile_he") || lower.contains("high_explosive")) return DeathCause.MISSILE_HIGH_EXPLOSIVE;
+        if (lower.contains("missile_nuclear") || lower.contains("nuke")) return DeathCause.MISSILE_NUCLEAR;
+        if (lower.contains("missile_abm") || lower.contains("abm")) return DeathCause.MISSILE_ABM;
+
+        return DeathCause.UNKNOWN;
     }
 }

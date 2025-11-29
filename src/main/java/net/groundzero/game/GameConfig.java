@@ -30,5 +30,12 @@ public class GameConfig {
     public double campPenaltyPercent = 0.05;
     public int campMaxStacks = 3;
 
+    /* ===== items ===== */
+    public double assaultDamage = 5.0;
+    public double assaultProjectileSpeed = 3.0;
+    public double assaultSpread = 0.02;
+    public int assaultCooldownTicks = 3;
+    public int assaultMagazineSize = 30;
+
     public GameConfig() {}
 }

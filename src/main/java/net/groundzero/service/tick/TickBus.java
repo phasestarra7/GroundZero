@@ -21,6 +21,8 @@ public final class TickBus {
     private volatile boolean running = false;
     private int currentTick = 0;
 
+    public int getCurrentTick() { return currentTick; }
+
     public void register(Tickable t) {
         if (t != null) subs.add(t);
     }

@@ -18,13 +18,14 @@ public final class Core {
 
     public static GuiService guiService;
     public static PlayerService playerService;
-    public static LoadoutService loadoutService;
+    //public static LoadoutService loadoutService;//TODO
     public static DamageService damageService;
     public static ScoreboardService scoreboardService;
     public static VoteService voteService;
     public static GameRuntimeService gameRuntimeService;
-    public static CombatOutcomeService combatOutcomeService;;
+    public static CombatOutcomeService combatOutcomeService;
     public static CombatIdleService combatIdleService;
+    public static ProjectileService projectileService;
 
     public static TickBus tickBus;
 
@@ -46,12 +47,13 @@ public final class Core {
         voteService = new VoteService();
         guiService = new GuiService();
         playerService = new PlayerService();
-        loadoutService = new LoadoutService();
+        //loadoutService = new LoadoutService();//TODO
         damageService = new DamageService();
         scoreboardService = new ScoreboardService();
         gameRuntimeService = new GameRuntimeService();
         combatOutcomeService = new CombatOutcomeService();
         combatIdleService = new CombatIdleService();
+        projectileService = new ProjectileService();
 
         tickBus = new TickBus();
     }
