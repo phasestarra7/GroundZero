@@ -1,4 +1,4 @@
-// game/GameManager.java (전체 교체)
+// game/GameManager.java
 package net.groundzero.game;
 
 import net.groundzero.app.Core;
@@ -18,6 +18,18 @@ import java.util.UUID;
  *
  * Lifecycle:
  *   IDLE -> (start) -> PREGAME (voting) -> RUNNING -> ENDED -> IDLE
+ *
+ * Phase Flow (clearly visible):
+ *   1. startFromIdle()
+ *   2. → beginVotingFlow()
+ *   3.   → voteMapSize()
+ *   4.   → voteIncome()
+ *   5.   → voteGameMode()
+ *   6.   → finalCountdown()
+ *   7. → startActualGame()
+ *   8.   → (20 min gameplay)
+ *   9. → endMatch()
+ *  10. → (cleanup) → back to IDLE
  *
  * Cancel/Stop methods:
  *   - cancelPregame(): Cancel during pregame (voting/countdown). Resets pregame-only data.
@@ -134,7 +146,7 @@ public class GameManager {
         Core.schedulers.runLater(this::printMatchResults, 20L);
 
         // Full cleanup after delay
-        Core.schedulers.runLater(this::doFullCleanup, Core.gameConfig.delayTicks);
+        Core.schedulers.runLater(this::doFullCleanup, Core.gameConfig.matchEndDelayTicks);
     }
 
     /**
@@ -148,11 +160,11 @@ public class GameManager {
         // Cancel all scheduled tasks
         Core.schedulers.cancelAll();
 
-        // Reset all services
-        resetAllServices();
-
         // Restore world
         restoreEnvironmentToDefault();
+
+        // Reset all services
+        resetAllServices();
 
         // Back to IDLE
         session.setState(GameState.IDLE);
@@ -161,16 +173,6 @@ public class GameManager {
         if (sender != null) {
             Core.notifier.message(sender, false, "Game force stopped");
         }
-    }
-
-    // Legacy method name for compatibility
-    public void tryCancel(Player p) {
-        cancelPregame(p);
-    }
-
-    // Legacy method name for compatibility  
-    public void forceCancel(Player p) {
-        forceStop(p);
     }
 
     /* =========================================================
@@ -220,6 +222,9 @@ public class GameManager {
         Core.playerService.reset();
         Core.scoreboardService.reset();
 
+        // Player states (central)
+        Core.playerStates.reset();
+
         // Session data
         Core.session.clearRuntimeAndOptions();
     }
@@ -238,11 +243,11 @@ public class GameManager {
             p.setGameMode(GameMode.SURVIVAL);
         }
 
-        // Reset all services
-        resetAllServices();
-
         // Restore world settings
         restoreEnvironmentToDefault();
+
+        // Reset all services
+        resetAllServices();
 
         // Back to IDLE
         session.setState(GameState.IDLE);
@@ -267,9 +272,13 @@ public class GameManager {
     }
 
     /* =========================================================
-       START FLOW
+       PHASE FLOW: Start → Voting → Game Start
+       This section shows the complete pregame flow clearly
        ========================================================= */
 
+    /**
+     * PHASE 1: Initialize game from IDLE state
+     */
     private void startFromIdle(Player sender) {
         // 1) Collect participants from current spectators
         session.snapshotParticipantsFromSpectators();
@@ -299,11 +308,55 @@ public class GameManager {
 
         // 4) Begin voting flow
         session.setState(GameState.COUNTDOWN_BEFORE_VOTING);
-        Core.voteService.startVoting(this::onVotingComplete);
+        Core.voteService.startCountdownInternal(
+                Core.gameConfig.preVoteCountdownTicks / 20,
+                this::beginVotingFlow
+        );
     }
 
     /**
-     * Called by VoteService when all votes are done.
+     * PHASE 2: Start voting sequence
+     * Flow: MapSize → Income → GameMode → FinalCountdown → Game
+     */
+    private void beginVotingFlow() {
+        voteMapSize();
+    }
+
+    /**
+     * PHASE 3: Vote for map size
+     */
+    private void voteMapSize() {
+        Core.voteService.startMapSizeVote(this::voteIncome);
+    }
+
+    /**
+     * PHASE 4: Vote for income multiplier
+     */
+    private void voteIncome() {
+        Core.voteService.startIncomeVote(this::voteGameMode);
+    }
+
+    /**
+     * PHASE 5: Vote for game mode
+     */
+    private void voteGameMode() {
+        Core.voteService.startGameModeVote(this::finalCountdown);
+    }
+
+    /**
+     * PHASE 6: Final countdown before game starts
+     */
+    private void finalCountdown() {
+        Core.guiService.closeAllGZViews();
+        session.setState(GameState.COUNTDOWN_BEFORE_START);
+        Core.voteService.startCountdownInternal(
+                Core.gameConfig.finalCountdownTicks / 20,
+                this::onVotingComplete
+        );
+    }
+
+    /**
+     * PHASE 7: Voting complete, apply options and start game
      */
     private void onVotingComplete() {
         GameState st = session.state();
@@ -317,7 +370,9 @@ public class GameManager {
         startActualGame();
     }
 
-    // originally was setUpGame()
+    /**
+     * PHASE 8: Start the actual game (RUNNING state)
+     */
     private void startActualGame() {
         GameState st = session.state();
         if (!st.isPregame()) {
@@ -369,7 +424,7 @@ public class GameManager {
         }
 
         // Give loadouts
-        //Core.loadoutService.giveInitialLoadouts(session.getParticipantsView());//TODO
+        Core.loadoutService.giveInitialLoadouts(session.getParticipantsView());
 
         // Change state
         session.setState(GameState.RUNNING);

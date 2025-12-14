@@ -2,8 +2,8 @@ package net.groundzero.listener.combat;
 
 import net.groundzero.app.Core;
 import net.groundzero.listener.BaseListener;
-import net.groundzero.service.ProjectileService;
-import net.groundzero.service.ProjectileService.Payload;
+import net.groundzero.service.combat.ProjectileService;
+import net.groundzero.service.combat.ProjectileService.Payload;
 import net.groundzero.service.model.DamageKind;
 import net.groundzero.service.model.DeathCause;
 import org.bukkit.entity.Arrow;
@@ -98,7 +98,7 @@ public final class CombatListener extends BaseListener implements Listener {
             Core.damageService.recordHit(
                     victim.getUniqueId(),
                     null,  // attacker 없음
-                    DamageKind.VANILLA,
+                    DamageKind.OTHER,
                     cause,
                     null,
                     e.getFinalDamage()

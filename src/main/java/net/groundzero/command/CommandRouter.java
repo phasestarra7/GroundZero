@@ -21,7 +21,8 @@ public final class CommandRouter implements CommandExecutor, TabCompleter {
         switch (args[0].toLowerCase()) {
             case "start":  return playerCmds.handleStart(sender);
             case "cancel": return playerCmds.handleCancel(sender);
-            case "test":  return adminCmds.handleTest(sender);
+            case "test":   return adminCmds.handleTest(sender);
+            case "items":  return adminCmds.handleItems(sender);
             default:       return false;
         }
     }

@@ -21,7 +21,7 @@ public final class PlayerCommands {
             sender.sendMessage("§r§cGroundZero §f| §cThis command is only available to players§r");
             return true;
         }
-        Core.game.tryCancel(p); // GameManager decides and notifies
+        Core.game.cancelPregame(p); // GameManager decides and notifies
         return true;
     }
 }
