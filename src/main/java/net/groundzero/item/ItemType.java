@@ -86,6 +86,20 @@ public enum ItemType {
                 this == RPG;
     }
 
+    public boolean hasNoLeftClick() {
+        boolean hasLeftClick = this == CONSOLE ||
+                this == ASSAULT ||
+                this == AUTO ||
+                this == SNIPER ||
+                this == RPG ||
+                this == MISSILE_SIMPLE ||
+                this == MISSILE_POISON ||
+                this == MISSILE_BUNKER ||
+                this == MISSILE_HIGHEXP ||
+                this == MISSILE_NUCLEAR;
+        return !hasLeftClick;
+    }
+
     public enum Category {
         CONSOLE,      // Shop + hotbar swap
         GUI,          // gui display

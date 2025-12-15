@@ -9,6 +9,7 @@ import net.groundzero.ui.options.IncomeOption;
 import net.groundzero.ui.options.MapSizeOption;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryAction;
@@ -18,17 +19,34 @@ import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryView;
 
+/**
+ * Handles interactions for OUR custom GUIs only (voting menus and shop).
+ *
+ * Responsibility: Protect our GUI integrity
+ * - Top inventory: ONLY LEFT/RIGHT clicks
+ * - Bottom inventory: Block actions that affect top GUI
+ * - Drag: Block any drag involving top inventory
+ *
+ * Does NOT handle:
+ * - Protected slot protection (InventoryProtectionListener)
+ * - External GUIs (chests, furnaces, etc.)
+ */
 public final class GuiClickListener extends BaseListener implements Listener {
 
-    @EventHandler
+    /* ==================== INVENTORY CLICK ==================== */
+
+    @EventHandler(priority = EventPriority.HIGHEST)
     public void onInventoryClick(InventoryClickEvent e) {
         if (!(e.getWhoClicked() instanceof Player p)) return;
 
         final InventoryView view = e.getView();
         final Inventory top = view.getTopInventory();
+
+        // Only handle our custom GUIs
         if (!(top.getHolder() instanceof GroundZeroMenuHolder holder)) return;
 
-        boolean playerInitiated = false;
+        // Always cancel first - we handle everything manually
+        e.setCancelled(true);
 
         final int topSize = top.getSize();
         final int raw = e.getRawSlot();
@@ -37,130 +55,169 @@ public final class GuiClickListener extends BaseListener implements Listener {
         final InventoryAction action = e.getAction();
         final MenuType mt = holder.type();
 
-        // ==== RULES OVERVIEW ====
-        // - Top (GUI): allow only LEFT/RIGHT clicks; always cancel default movement.
-        // - Bottom (player inv): allow most actions, except ones that can affect the Top:
-        //     * DOUBLE_CLICK / COLLECT_TO_CURSOR (pulls matching items from Top) -> cancel
-        //     * SHIFT-click move to Top (MOVE_TO_OTHER_INVENTORY) -> cancel
-
+        /* ===== TOP INVENTORY (Our GUI) ===== */
         if (inTop) {
-            // Allow only LEFT/RIGHT on GUI; block all others including shift/number-key/double-click/etc.
-            boolean allowed = (click == ClickType.LEFT || click == ClickType.RIGHT);
-            if (!allowed) {
-                e.setCancelled(true);
-                return;
+            // ONLY allow LEFT and RIGHT clicks
+            if (click != ClickType.LEFT && click != ClickType.RIGHT) {
+                return; // Block everything else
             }
-            // Prevent vanilla item transfer on GUI slots; we only interpret the click.
-            e.setCancelled(true);
 
-            // Route by menu type
+            // Route to appropriate handler
             switch (mt) {
                 case MAP_SIZE -> {
-                    // Cancel button is only active in voting menus
                     for (MapSizeOption opt : MapSizeOption.values()) {
                         if (opt.slot == raw) {
                             Core.voteService.voteMapSize(p.getUniqueId(), opt);
-                            break;
+                            return;
                         }
                     }
+                    // Cancel button
                     if (raw == 26) {
                         Core.game.cancelPregame(p);
                         p.closeInventory();
-                        return;
                     }
                 }
                 case INCOME_MULTIPLIER -> {
                     for (IncomeOption opt : IncomeOption.values()) {
                         if (opt.slot == raw) {
                             Core.voteService.voteIncome(p.getUniqueId(), opt);
-                            break;
+                            return;
                         }
                     }
                     if (raw == 26) {
                         Core.game.cancelPregame(p);
                         p.closeInventory();
-                        return;
                     }
                 }
                 case GAME_MODE -> {
                     for (GameModeOption opt : GameModeOption.values()) {
                         if (opt.slot == raw) {
                             Core.voteService.voteGameMode(p.getUniqueId(), opt);
-                            break;
+                            return;
                         }
                     }
                     if (raw == 26) {
                         Core.game.cancelPregame(p);
                         p.closeInventory();
-                        return;
                     }
                 }
                 case SHOP -> {
-                    // TODO: shop action routing by slot
-                }
-                default -> {
-                    // For any future GUI types, keep the same default behavior (no movement).
+                    // TODO: Shop click routing
+                    // Example: if (raw == WEAPON_CATEGORY_SLOT) { openWeaponShop(p); }
                 }
             }
             return;
         }
 
-        // === Bottom (player inventory) area ===
-        // Allow normal interactions EXCEPT those that could affect the Top GUI.
+        /* ===== BOTTOM INVENTORY (Player) ===== */
+        // Block actions that can affect top GUI
 
-        // 1) Block double-click collect behavior that would vacuum items from Top.
-        if (click == ClickType.DOUBLE_CLICK || action == InventoryAction.COLLECT_TO_CURSOR) {
-            e.setCancelled(true);
-            return;
-        }
-
-        // 2) Block shift-click "move to other inventory" (would try to move into Top GUI).
+        // 1. Shift-click (moves to top)
         if (action == InventoryAction.MOVE_TO_OTHER_INVENTORY) {
-            e.setCancelled(true);
             return;
         }
 
-        // Everything else (regular pickup/place, number key swaps within bottom, drops, etc.) is allowed.
-        // NOTE: If you later detect any specific exploits that still move items into Top,
-        // add targeted guards here (e.g., HOTBAR_SWAP/HOTBAR_MOVE_AND_READD when raw mapping hits Top).
+        // 2. Double-click (collects from top)
+        if (click == ClickType.DOUBLE_CLICK || action == InventoryAction.COLLECT_TO_CURSOR) {
+            return;
+        }
+
+        // 3. Hotbar swap actions (can affect top)
+        if (action == InventoryAction.HOTBAR_SWAP ||
+                action == InventoryAction.HOTBAR_MOVE_AND_READD) {
+            return;
+        }
+
+        // 4. Unknown actions (safety)
+        if (action == InventoryAction.UNKNOWN) {
+            return;
+        }
+
+        // Allow safe bottom-only interactions
+        // (PICKUP, PLACE, DROP, SWAP_OFFHAND, etc.)
+        switch (action) {
+            case PICKUP_ALL:
+            case PICKUP_HALF:
+            case PICKUP_ONE:
+            case PICKUP_SOME:
+            case PLACE_ALL:
+            case PLACE_ONE:
+            case PLACE_SOME:
+            case SWAP_WITH_CURSOR:
+            case DROP_ALL_CURSOR:
+            case DROP_ONE_CURSOR:
+            case DROP_ALL_SLOT:
+            case DROP_ONE_SLOT:
+            case NOTHING:
+                // These only affect bottom inventory - safe
+                e.setCancelled(false);
+                break;
+            default:
+                // Everything else stays cancelled
+                break;
+        }
     }
 
-    @EventHandler
+    /* ==================== INVENTORY DRAG ==================== */
+
+    @EventHandler(priority = EventPriority.HIGHEST)
     public void onInventoryDrag(InventoryDragEvent e) {
         if (!(e.getWhoClicked() instanceof Player)) return;
+
         final InventoryView view = e.getView();
         final Inventory top = view.getTopInventory();
+
+        // Only handle our custom GUIs
         if (!(top.getHolder() instanceof GroundZeroMenuHolder)) return;
 
         final int topSize = top.getSize();
-        // Cancel only if any raw slot touched is in the Top inventory.
-        boolean affectsTop = e.getRawSlots().stream().anyMatch(raw -> raw >= 0 && raw < topSize);
-        if (affectsTop) {
-            e.setCancelled(true);
+
+        // Block if ANY dragged slot is in top inventory
+        for (int rawSlot : e.getRawSlots()) {
+            if (rawSlot >= 0 && rawSlot < topSize) {
+                e.setCancelled(true);
+                return;
+            }
         }
-        // Else: allow drags confined to the bottom inventory.
+
+        // Allow bottom-only drags
     }
 
-    @EventHandler
+    /* ==================== AUTO-REOPEN FOR VOTING ==================== */
+
+    @EventHandler(priority = EventPriority.MONITOR)
     public void onInventoryClose(InventoryCloseEvent e) {
         if (!(e.getPlayer() instanceof Player p)) return;
+
         final Inventory top = e.getView().getTopInventory();
         if (!(top.getHolder() instanceof GroundZeroMenuHolder holder)) return;
 
+        // Only reopen if player manually closed
         if (e.getReason() != InventoryCloseEvent.Reason.PLAYER) return;
 
-        // Auto-reopen only when voting is active for that specific GUI.
+        // Auto-reopen only during active voting
         switch (holder.type()) {
             case MAP_SIZE -> Core.schedulers.runLater(() -> {
-                if (Core.voteService.isVotingMapSize()) Core.guiService.openMapSize(p);
+                if (p.isOnline() && Core.voteService.isVotingMapSize()) {
+                    Core.guiService.openMapSize(p);
+                }
             }, 1L);
+
             case INCOME_MULTIPLIER -> Core.schedulers.runLater(() -> {
-                if (Core.voteService.isVotingIncome()) Core.guiService.openIncome(p);
+                if (p.isOnline() && Core.voteService.isVotingIncome()) {
+                    Core.guiService.openIncome(p);
+                }
             }, 1L);
+
             case GAME_MODE -> Core.schedulers.runLater(() -> {
-                if (Core.voteService.isVotingGameMode()) Core.guiService.openGameMode(p);
+                if (p.isOnline() && Core.voteService.isVotingGameMode()) {
+                    Core.guiService.openGameMode(p);
+                }
             }, 1L);
-            default -> { /* No auto-reopen for other GUI types */ }
+
+            case SHOP -> {
+                // Shop can be closed freely
+            }
         }
     }
 }

@@ -2,7 +2,7 @@ package net.groundzero.app;
 
 import net.groundzero.command.CommandRouter;
 import net.groundzero.listener.combat.CombatListener;
-//import net.groundzero.listener.player.ItemInteractionListener;//TODO
+import net.groundzero.listener.debug.InteractionDebugListener;
 import net.groundzero.listener.player.InventoryProtectionListener;
 import net.groundzero.listener.player.ItemInteractionListener;
 import net.groundzero.listener.player.PlayerLifecycleListener;
@@ -33,6 +33,8 @@ public final class GroundZero extends JavaPlugin {
         pm.registerEvents(new GuiClickListener(), this);
         pm.registerEvents(new CombatListener(), this);
         pm.registerEvents(new WorldProtectionListener(), this);
+
+        pm.registerEvents(new InteractionDebugListener(), this);
 
         getLogger().info("GroundZero enabled");
     }

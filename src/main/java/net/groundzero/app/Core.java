@@ -2,6 +2,7 @@ package net.groundzero.app;
 
 import net.groundzero.game.*;
 import net.groundzero.item.ItemRegistry;
+import net.groundzero.listener.player.InventoryProtectionListener;
 import net.groundzero.service.combat.CombatIdleService;
 import net.groundzero.service.combat.CombatOutcomeService;
 import net.groundzero.service.combat.DamageService;

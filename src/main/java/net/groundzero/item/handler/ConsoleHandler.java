@@ -13,6 +13,8 @@ public class ConsoleHandler implements ItemHandler {
     @Override
     public boolean onLeftClick(Player player, ItemStack item) {
         // Left click: Open shop
+
+        Core.notifier.sound(player.getUniqueId(), Sound.UI_BUTTON_CLICK, Notifier.PitchLevel.MID);
         Core.guiService.openShop(player);
         return true;
     }
