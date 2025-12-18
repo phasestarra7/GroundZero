@@ -35,7 +35,7 @@ public final class GuiClickListener extends BaseListener implements Listener {
 
     /* ==================== INVENTORY CLICK ==================== */
 
-    @EventHandler(priority = EventPriority.HIGHEST)
+    @EventHandler(priority = EventPriority.HIGH)
     public void onInventoryClick(InventoryClickEvent e) {
         if (!(e.getWhoClicked() instanceof Player p)) return;
 
@@ -160,7 +160,7 @@ public final class GuiClickListener extends BaseListener implements Listener {
 
     /* ==================== INVENTORY DRAG ==================== */
 
-    @EventHandler(priority = EventPriority.HIGHEST)
+    @EventHandler(priority = EventPriority.HIGH)
     public void onInventoryDrag(InventoryDragEvent e) {
         if (!(e.getWhoClicked() instanceof Player)) return;
 
