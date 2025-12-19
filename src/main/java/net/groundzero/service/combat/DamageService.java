@@ -1,7 +1,6 @@
 package net.groundzero.service.combat;
 
 import net.groundzero.app.Core;
-import net.groundzero.service.model.DamageKind;
 import net.groundzero.service.model.LastHit;
 import net.groundzero.service.model.DeathCause;
 import net.groundzero.service.combat.ProjectileService.Payload;
@@ -17,19 +16,18 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Custom damage pipeline helpers:
- * - Single metadata flag "META_CUSTOM_HIT" to mark our own custom damage tick.
- * - Record last-hit snapshot for kill credit (attacker UUID kept even if offline).
- * - Temporarily remove i-frames (noDamageTicks) so rapid hits are possible.
+ * Custom damage pipeline:
+ * - Records last-hit snapshot for kill credit
+ * - Handles custom damage application (projectile, TNT, poison, missile)
+ * - Maps vanilla damage causes to DeathCause
  *
- * NOTE:
- * - We DO NOT require the attacker to be online to record hit. Scoring uses UUID.
- * - For visual damage animation source: if attacker is online, pass Player as damager;
- *   otherwise call damage(amount) without a damager entity.
+ * LastHit handling:
+ * - Player-caused damage (DeathCause.isPlayerCaused): Overwrite entire LastHit
+ * - Environment/Mob damage (DeathCause.isEnvironment): Keep attacker if within combat window
  */
 public final class DamageService {
 
-    /** Metadata key to mark "this tick is our custom damage" (skip listeners/knockback, etc.). */
+    /** Metadata key to mark "this tick is our custom damage". */
     public static final String META_PROCESSING_DAMAGE = "gz_applying_damage_now";
 
     /** victimId -> last hit snapshot */
@@ -42,31 +40,32 @@ public final class DamageService {
     /* ===================== last-hit API (kill credit) ===================== */
 
     /**
-     * Record a hit snapshot for victim. Attacker can be offline; UUID is stored.
+     * Record a hit snapshot for victim.
+     *
+     * @param victim   damaged player UUID
+     * @param attacker attacker UUID (null for environment/mob)
+     * @param cause    detailed death cause
+     * @param weaponId custom weapon ID (nullable)
+     * @param amount   damage amount
      */
-    /**
-     * Record a hit snapshot for victim with detailed DeathCause.
-     * Attacker can be offline; UUID is stored.
-     */
-    public void recordHit(UUID victim, UUID attacker, DamageKind kind, DeathCause cause,
+    public void recordHit(UUID victim, UUID attacker, DeathCause cause,
                           String weaponId, double amount) {
-        if (victim == null || kind == null) return;
+        if (victim == null || cause == null) return;
         if (!Core.session.state().isIngame()) return;
 
         int snap = Core.session.remainingTicks();
 
-        // if there's no attacker, use lasthitmap's attacker data and only update the cause
-        if (attacker == null) {
+        // Environment/Mob damage: keep existing attacker within combat window
+        if (cause.isEnvironment()) {
             LastHit existing = lastHitMap.get(victim);
             if (existing != null && existing.attacker != null) {
                 int dt = existing.tick - snap;
                 boolean stillInWindow = (dt >= 0) && (dt < Core.gameConfig.combatWindowTicks);
                 if (stillInWindow) {
-                    // Keep attacker, kind, weaponId, tick / update cause only
+                    // Keep attacker, weaponId, tick / update cause and amount only
                     lastHitMap.put(victim, new LastHit(
                             victim,
                             existing.attacker,
-                            existing.kind,      // kind 유지
                             cause,
                             existing.weaponId,
                             amount,
@@ -75,38 +74,18 @@ public final class DamageService {
                     return;
                 }
             }
+            // Window expired or no existing attacker: record as pure environment
+            lastHitMap.put(victim, new LastHit(victim, null, cause, null, amount, snap));
+            return;
         }
 
-        lastHitMap.put(victim, new LastHit(
-                victim, attacker, kind, cause, weaponId, amount, snap
-        ));
+        // Player-caused damage: overwrite entire LastHit
+        lastHitMap.put(victim, new LastHit(victim, attacker, cause, weaponId, amount, snap));
 
-        // ✅ NEW: Idle Timer reset only for Player-Player interactions
-        if (shouldResetIdleTimer(attacker, kind)) {
+        // Reset idle timer for player-vs-player combat
+        if (cause.isPlayerCaused() && attacker != null) {
             Core.combatIdleService.onCombatEvent(attacker, victim);
         }
-    }
-
-    /**
-     * Check if Idle Timer should be reset for this damage event.
-     *
-     * Criteria:
-     * - Attacker must exist (Player-caused damage)
-     * - DamageKind must be combat-related (not environment/mob)
-     */
-    private boolean shouldResetIdleTimer(UUID attacker, DamageKind kind) {
-        if (attacker == null) return false;
-
-        return switch (kind) {
-            case VANILLA,      // Player melee, vanilla arrows
-                 PROJECTILE,   // Custom weapons (assault, sniper, etc)
-                 TNT,          // RPG, custom explosives
-                 POISON,       // DoT effects
-                 MISSILE       // Missiles (future)
-                    -> true;
-            case OTHER         // Environment, Mob
-                    -> false;
-        };
     }
 
     /** Read-only peek of last hit (maybe null). */
@@ -115,8 +94,8 @@ public final class DamageService {
         return lastHitMap.get(victim);
     }
 
-    /** Clear a victim's last-hit snapshot (e.g., on respawn if desired). */
-    private void clear(UUID victim) {
+    /** Clear a victim's last-hit snapshot (e.g., on respawn). */
+    public void clearLastHit(UUID victim) {
         if (victim == null) return;
         lastHitMap.remove(victim);
     }
@@ -125,84 +104,53 @@ public final class DamageService {
         lastHitMap.clear();
     }
 
-    /* ===================== DeathCause mapping ===================== */
+    /* ===================== DeathCause mapping from vanilla ===================== */
 
     /**
      * Map vanilla DamageCause to our DeathCause enum.
-     * Call this from CombatListener when recording vanilla damage.
      *
      * @param cause     Bukkit DamageCause
-     * @param hasPlayer true if attacker was a player (for MELEE vs MOB distinction)
+     * @param hasPlayer true if attacker was a player
      */
     public DeathCause mapVanillaCause(EntityDamageEvent.DamageCause cause, boolean hasPlayer) {
         if (cause == null) return DeathCause.UNKNOWN;
 
         return switch (cause) {
-            // Falls / void
             case FALL -> DeathCause.FALL;
             case VOID -> DeathCause.VOID;
-
-            // Lava / hot floor / fire / campfire
             case LAVA -> DeathCause.LAVA;
             case HOT_FLOOR -> DeathCause.HOT_FLOOR;
             case FIRE -> DeathCause.FIRE;
             case CAMPFIRE -> DeathCause.CAMPFIRE;
             case FIRE_TICK -> DeathCause.FIRE_TICK;
-
-            // Water / suffocation / cramming
             case DROWNING -> DeathCause.DROWNING;
             case SUFFOCATION -> DeathCause.SUFFOCATION;
             case CRAMMING -> DeathCause.CRAMMING;
-
-            // Explosions
             case BLOCK_EXPLOSION, ENTITY_EXPLOSION -> DeathCause.EXPLOSION;
-
-            // Contact-type damage (cactus, dripstone, berry bush)
-            // Note: SWEET_BERRY is set manually when we detect berry bush specifically.
             case CONTACT -> DeathCause.CACTUS;
-
-            // Lightning
             case LIGHTNING -> DeathCause.LIGHTNING;
-
-            // Hunger / status effects
             case STARVATION -> DeathCause.STARVATION;
             case POISON -> DeathCause.VANILLA_POISON;
             case WITHER -> DeathCause.WITHER;
             case MAGIC -> DeathCause.MAGIC;
-
-            // Misc magic / dragon / thorns
             case DRAGON_BREATH -> DeathCause.DRAGON_BREATH;
             case THORNS -> DeathCause.THORNS;
-
-            // Falling / kinetic / freeze / sonic
             case FALLING_BLOCK -> DeathCause.FALLING_BLOCK;
             case FLY_INTO_WALL -> DeathCause.FLY_INTO_WALL;
             case FREEZE -> DeathCause.FREEZE;
             case SONIC_BOOM -> DeathCause.SONIC_BOOM;
-
-            // Border / kill / suicide
             case WORLD_BORDER -> DeathCause.WORLD_BORDER;
-            case KILL -> DeathCause.KILL;
-            case SUICIDE -> DeathCause.KILL;     // Treat as generic /kill
-
-            // Snow golem melt / fish dry-out (players should not see these normally)
-            case MELTING -> DeathCause.FIRE;      // Best-effort mapping
-            case DRYOUT -> DeathCause.DROWNING;   // Best-effort mapping
-
-            // Combat: player vs player / mob
+            case KILL, SUICIDE -> DeathCause.KILL;
+            case MELTING -> DeathCause.FIRE;
+            case DRYOUT -> DeathCause.DROWNING;
             case ENTITY_ATTACK, ENTITY_SWEEP_ATTACK ->
                     hasPlayer ? DeathCause.MELEE : DeathCause.MOB;
             case PROJECTILE ->
                     hasPlayer ? DeathCause.VANILLA_PROJECTILE : DeathCause.MOB;
-
-            // Plugin custom sources
             case CUSTOM -> DeathCause.UNKNOWN;
-
-            // Anything else in future versions
             default -> DeathCause.UNKNOWN;
         };
     }
-
 
     /* ===================== custom-damage helpers ===================== */
 
@@ -213,11 +161,9 @@ public final class DamageService {
 
     /**
      * Mark as our custom damage for 1 tick, then auto-clear.
-     * This single flag is used by listeners to ignore recursive handling.
      */
     public void markProcessingDamage(LivingEntity le) {
         le.setMetadata(META_PROCESSING_DAMAGE, new FixedMetadataValue(Core.plugin, true));
-        // auto-clear next tick
         Core.schedulers.runLater(() -> {
             try {
                 le.removeMetadata(META_PROCESSING_DAMAGE, Core.plugin);
@@ -226,9 +172,7 @@ public final class DamageService {
     }
 
     /**
-     * Apply custom damage while temporarily removing i-frames.
-     * - If attackerId is online, pass Player as the damager for proper vanilla feedback.
-     * - If attackerId is null or offline, call damage(amount) without a source.
+     * Apply custom projectile damage with i-frame removal.
      */
     public void applyProjectileDamage(UUID attackerId, LivingEntity victim, Payload payload) {
         if (victim == null || payload == null) return;
@@ -237,36 +181,50 @@ public final class DamageService {
         final double amount = Math.max(0.0, payload.baseDamage());
         final Player attacker = (attackerId != null) ? Bukkit.getPlayer(attackerId) : null;
 
-        // Mark this tick as our custom application to:
-        //  - prevent recursive listener handling
-        //  - allow knockback listeners to cancel knockback
         markProcessingDamage(victim);
 
-        // Snapshot velocity to suppress vanilla knockback after damage
         final Vector preVel = victim.getVelocity();
-
-        // Remove i-frames before damage (vanilla sets them when taking damage)
         final int oldNoDamageTicks = victim.getNoDamageTicks();
         victim.setNoDamageTicks(0);
 
         try {
-            // Apply damage immediately (same tick)
             if (attacker != null && attacker.isOnline()) {
-                // Use attacker entity for proper vanilla feedback when available
                 victim.damage(amount, attacker);
             } else {
-                // Offline/unknown attacker: still apply damage; scoring uses UUID elsewhere
                 victim.damage(amount);
             }
-
-            // Suppress knockback by restoring velocity right after damage
             victim.setVelocity(preVel);
-
-            // Keep i-frames at 0 to allow rapid successive hits
             victim.setNoDamageTicks(0);
-
         } catch (Throwable t) {
-            // If anything goes wrong, try to restore previous state minimally
+            try { victim.setNoDamageTicks(oldNoDamageTicks); } catch (Throwable ignored) {}
+            throw t;
+        }
+    }
+
+    /**
+     * Apply custom damage (for TNT, poison tick, missile, etc.)
+     */
+    public void applyCustomDamage(UUID attackerId, LivingEntity victim, double amount) {
+        if (victim == null || amount <= 0) return;
+        if (!Core.session.state().isIngame()) return;
+
+        final Player attacker = (attackerId != null) ? Bukkit.getPlayer(attackerId) : null;
+
+        markProcessingDamage(victim);
+
+        final Vector preVel = victim.getVelocity();
+        final int oldNoDamageTicks = victim.getNoDamageTicks();
+        victim.setNoDamageTicks(0);
+
+        try {
+            if (attacker != null && attacker.isOnline()) {
+                victim.damage(amount, attacker);
+            } else {
+                victim.damage(amount);
+            }
+            victim.setVelocity(preVel);
+            victim.setNoDamageTicks(0);
+        } catch (Throwable t) {
             try { victim.setNoDamageTicks(oldNoDamageTicks); } catch (Throwable ignored) {}
             throw t;
         }

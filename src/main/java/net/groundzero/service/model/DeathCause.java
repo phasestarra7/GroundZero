@@ -1,73 +1,111 @@
 package net.groundzero.service.model;
 
 /**
- * Detailed death cause for message generation.
- * Maps to vanilla DamageCause but also includes our custom weapon types.
+ * Unified death cause for:
+ * - Kill credit determination
+ * - Death message generation
+ * - Idle timer reset decisions
+ *
+ * AttackerType determines how LastHit should be handled:
+ * - PLAYER: Overwrite entire LastHit, reset idle timer
+ * - MOB/ENVIRONMENT: Keep existing attacker if within combat window, update cause only
  */
 public enum DeathCause {
 
     // ========== Player Combat (Custom Weapons) ==========
-    ASSAULT,            // Assault rifle arrow
-    AUTO,               // Auto rifle arrow
-    SNIPER,             // Sniper rifle arrow
-    CONCUSSIVE,         // Concussive shell (stun arrow)
-    RPG,                // RPG explosion
-    SMOKE,              // Smoke grenade (no damage, but placeholder)
+    ASSAULT(AttackerType.PLAYER),
+    AUTO(AttackerType.PLAYER),
+    SNIPER(AttackerType.PLAYER),
+    CONCUSSIVE(AttackerType.PLAYER),
+    RPG(AttackerType.PLAYER),
+    SMOKE(AttackerType.PLAYER),
 
-    // ========== Aerial Support ==========
-    AERIAL_SIMPLE,
-    AERIAL_ARROW,
-    AERIAL_CLUSTER,
-    AERIAL_RANDOM,
-    AERIAL_CARPET,
-    AERIAL_HACK,
-
-    // ========== Missiles ==========
-    MISSILE_SIMPLE,
-    MISSILE_POISON,
-    MISSILE_BUNKER_BUSTER,
-    MISSILE_HIGH_EXPLOSIVE,
-    MISSILE_NUCLEAR,
-    MISSILE_ABM,
+    // ========== Custom TNT (RPG, etc.) ==========
+    CUSTOM_TNT(AttackerType.PLAYER),
 
     // ========== Custom DoT ==========
-    POISON_TICK,        // Our custom poison (not vanilla)
+    POISON_TICK(AttackerType.PLAYER),
 
-    // ========== Vanilla Combat ==========
-    MELEE,              // ENTITY_ATTACK, ENTITY_SWEEP_ATTACK
-    VANILLA_PROJECTILE, // Vanilla arrow/trident (not our custom)
+    // ========== Aerial Support ==========
+    AERIAL_SIMPLE(AttackerType.PLAYER),
+    AERIAL_ARROW(AttackerType.PLAYER),
+    AERIAL_CLUSTER(AttackerType.PLAYER),
+    AERIAL_RANDOM(AttackerType.PLAYER),
+    AERIAL_CARPET(AttackerType.PLAYER),
+    AERIAL_HACK(AttackerType.PLAYER),
 
-    // ========== Vanilla Environment ==========
-    FALL,
-    VOID,
-    LAVA,
-    FIRE,
-    FIRE_TICK,
-    HOT_FLOOR,          // Magma block damage
-    CAMPFIRE,           // Campfire / soul campfire
-    DROWNING,
-    SUFFOCATION,
-    CRAMMING,
-    EXPLOSION,          // Generic explosion (not player-caused)
-    CACTUS,
-    SWEET_BERRY,
-    LIGHTNING,
-    STARVATION,
-    VANILLA_POISON,     // Vanilla poison effect
-    WITHER,
-    MAGIC,
-    DRAGON_BREATH,
-    THORNS,
-    FALLING_BLOCK,
-    FLY_INTO_WALL,      // Elytra crash
-    FREEZE,
-    SONIC_BOOM,         // Warden
-    WORLD_BORDER,       // World border damage
-    KILL,               // /kill, admin removal
+    // ========== Missiles ==========
+    MISSILE_SIMPLE(AttackerType.PLAYER),
+    MISSILE_POISON(AttackerType.PLAYER),
+    MISSILE_BUNKER_BUSTER(AttackerType.PLAYER),
+    MISSILE_HIGH_EXPLOSIVE(AttackerType.PLAYER),
+    MISSILE_NUCLEAR(AttackerType.PLAYER),
+    MISSILE_ABM(AttackerType.PLAYER),
 
-    // ========== Mobs ==========
-    MOB,                // Generic mob kill
+    // ========== Vanilla Player Combat ==========
+    MELEE(AttackerType.PLAYER),
+    VANILLA_PROJECTILE(AttackerType.PLAYER),
+
+    // ========== Mob ==========
+    MOB(AttackerType.MOB),
+
+    // ========== Environment ==========
+    FALL(AttackerType.ENVIRONMENT),
+    VOID(AttackerType.ENVIRONMENT),
+    LAVA(AttackerType.ENVIRONMENT),
+    FIRE(AttackerType.ENVIRONMENT),
+    FIRE_TICK(AttackerType.ENVIRONMENT),
+    HOT_FLOOR(AttackerType.ENVIRONMENT),
+    CAMPFIRE(AttackerType.ENVIRONMENT),
+    DROWNING(AttackerType.ENVIRONMENT),
+    SUFFOCATION(AttackerType.ENVIRONMENT),
+    CRAMMING(AttackerType.ENVIRONMENT),
+    EXPLOSION(AttackerType.ENVIRONMENT),
+    CACTUS(AttackerType.ENVIRONMENT),
+    SWEET_BERRY(AttackerType.ENVIRONMENT),
+    LIGHTNING(AttackerType.ENVIRONMENT),
+    STARVATION(AttackerType.ENVIRONMENT),
+    VANILLA_POISON(AttackerType.ENVIRONMENT),
+    WITHER(AttackerType.ENVIRONMENT),
+    MAGIC(AttackerType.ENVIRONMENT),
+    DRAGON_BREATH(AttackerType.ENVIRONMENT),
+    THORNS(AttackerType.ENVIRONMENT),
+    FALLING_BLOCK(AttackerType.ENVIRONMENT),
+    FLY_INTO_WALL(AttackerType.ENVIRONMENT),
+    FREEZE(AttackerType.ENVIRONMENT),
+    SONIC_BOOM(AttackerType.ENVIRONMENT),
+    WORLD_BORDER(AttackerType.ENVIRONMENT),
+    KILL(AttackerType.ENVIRONMENT),
 
     // ========== Fallback ==========
-    UNKNOWN
+    UNKNOWN(AttackerType.ENVIRONMENT);
+
+    public enum AttackerType {
+        PLAYER,      // Player-caused damage (has attacker, resets idle)
+        MOB,         // Mob damage (no attacker, no kill credit)
+        ENVIRONMENT  // Environment damage (no attacker, keeps existing)
+    }
+
+    public final AttackerType attackerType;
+
+    DeathCause(AttackerType type) {
+        this.attackerType = type;
+    }
+
+    /**
+     * Returns true if this is a player-caused damage.
+     * Player damage: overwrite entire LastHit, reset idle timer.
+     */
+    public boolean isPlayerCaused() {
+        return attackerType == AttackerType.PLAYER;
+    }
+
+    /**
+     * Returns true if this is environment/mob damage.
+     * Environment damage: keep existing attacker within combat window, update cause only.
+     */
+    public boolean isEnvironment() {
+        return attackerType == AttackerType.ENVIRONMENT
+                || attackerType == AttackerType.MOB;
+    }
 }

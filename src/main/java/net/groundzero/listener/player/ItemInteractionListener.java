@@ -93,7 +93,7 @@ public class ItemInteractionListener extends BaseListener implements Listener {
             handled = handler.onLeftClick(player, item);
 
             // Only cancel vanilla if item has left-click functionality
-            if (handled && !type.hasNoLeftClick()) {
+            if (handled && type.hasLeftClickAction()) {
                 event.setCancelled(true);
             }
         }
@@ -108,7 +108,7 @@ public class ItemInteractionListener extends BaseListener implements Listener {
             handled = handler.onLeftClick(player, item);
 
             // Only cancel vanilla if item has left-click functionality
-            if (handled && !type.hasNoLeftClick()) {
+            if (handled && type.hasLeftClickAction()) {
                 event.setCancelled(true);
             }
         }
@@ -149,7 +149,7 @@ public class ItemInteractionListener extends BaseListener implements Listener {
         // Process left-click
         boolean handled = handler.onLeftClick(player, item);
 
-        if (handled && !type.hasNoLeftClick()) {
+        if (handled && type.hasLeftClickAction()) {
             // Cancel vanilla melee attack
             event.setCancelled(true);
         }

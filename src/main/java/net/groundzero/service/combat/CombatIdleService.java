@@ -11,14 +11,15 @@ import java.util.UUID;
 
 /**
  * Combat-idle tracker (tick-based, 1-tick resolution).
- * Now uses PlayerGameState for all state management.
  *
- * Rules:
- * - Each player has an "idleTicks" counter.
- * - On combat events (hit), both attacker and victim are reset to negative grace.
- * - Every server tick, idleTicks += 1.
- * - When idleTicks crosses warn threshold, notify player.
- * - When idleTicks >= firstPenaltyTicks, apply penalties stepwise.
+ * Idle Timer Rules:
+ * - On combat event (player-vs-player hit): reset both attacker and victim to -combatWindowTicks
+ * - On death: reset to -respawnDelayTicks (so timer starts at 0 after respawn)
+ * - Every tick: idleTicks += 1
+ * - At warn threshold: notify player
+ * - At penalty threshold: apply score penalties
+ *
+ * Note: If player dies and logs out, timer keeps running (they may accumulate penalties).
  */
 public final class CombatIdleService implements TickBus.Tickable, Resettable {
 
@@ -43,17 +44,16 @@ public final class CombatIdleService implements TickBus.Tickable, Resettable {
     public void reset() {
         running = false;
         Core.tickBus.unregister(this);
-        // State is managed by PlayerGameStateService
     }
 
-    /* ===================== Combat hook ===================== */
+    /* ===================== Combat Event Hook ===================== */
 
     /**
-     * Called on every combat event (e.g., from DamageService.recordHit).
-     * Resets both attacker and victim idle clocks to negative grace.
+     * Called on player-vs-player combat event.
+     * Resets both attacker and victim idle clocks to -combatWindowTicks.
      */
     public void onCombatEvent(UUID attacker, UUID victim) {
-        final int negGrace = negativeGraceTicks();
+        final int negGrace = -Math.max(0, Core.gameConfig.combatWindowTicks);
 
         if (victim != null) {
             PlayerGameState state = Core.playerStates.getOrCreate(victim);
@@ -66,6 +66,19 @@ public final class CombatIdleService implements TickBus.Tickable, Resettable {
         }
     }
 
+    /**
+     * Called when player dies (any cause - player, mob, or environment).
+     * Resets idle to -respawnDelayTicks so timer starts at 0 after respawn.
+     */
+    public void onDeath(UUID playerId) {
+        if (playerId == null) return;
+
+        final int negRespawn = -Math.max(0, Core.gameConfig.respawnDelayTicks);
+
+        PlayerGameState state = Core.playerStates.getOrCreate(playerId);
+        state.resetIdleToGrace(negRespawn);
+    }
+
     /* ===================== Tick ===================== */
 
     @Override
@@ -73,19 +86,29 @@ public final class CombatIdleService implements TickBus.Tickable, Resettable {
         if (!running) return;
         if (!Core.session.state().isIngame()) return;
 
-        final int warnAt      = Math.max(0, Core.gameConfig.campWarnTicks);
-        final int firstAt     = Math.max(1, Core.gameConfig.campFirstPenaltyTicks);
-        final int interval    = Math.max(1, Core.gameConfig.campPenaltyIntervalTicks);
-        final double p        = Math.max(0.0, Core.gameConfig.campPenaltyPercent);
-        final int maxStacks   = Math.max(1, Core.gameConfig.campMaxStacks);
+        final int warnAt = Math.max(0, Core.gameConfig.campWarnTicks);
+        final int firstAt = Math.max(1, Core.gameConfig.campFirstPenaltyTicks);
+        final int interval = Math.max(1, Core.gameConfig.campPenaltyIntervalTicks);
+        final double p = Math.max(0.0, Core.gameConfig.campPenaltyPercent);
+        final int maxStacks = Math.max(1, Core.gameConfig.campMaxStacks);
 
         for (UUID id : Core.session.getParticipantsView()) {
             PlayerGameState state = Core.playerStates.getOrCreate(id);
 
+            // Skip dead players (timer still advances, but no warnings/penalties while dead)
+            // Actually, per requirement: timer keeps running even if dead
+            // But we should skip penalties if player is dead
+            // Let's just advance timer for everyone, but skip warn/penalty if dead
+
             // 1) Advance idle counter
             final int prev = state.getIdleTicks();
-            final int now  = prev + 1;
+            final int now = prev + 1;
             state.setIdleTicks(now);
+
+            // Skip warnings and penalties if player is dead
+            if (state.isDead()) {
+                continue;
+            }
 
             // 2) Warn once when crossing warnAt
             if (prev < warnAt && now >= warnAt) {
@@ -101,13 +124,11 @@ public final class CombatIdleService implements TickBus.Tickable, Resettable {
             // 3) Penalties after firstAt, then every interval
             if (now >= firstAt) {
                 int stepIndex = 1 + ((now - firstAt) / interval);
-                int already   = state.getCampingPenaltyStep();
+                int already = state.getCampingPenaltyStep();
 
-                // Apply only when a NEW step has been reached
                 if (stepIndex > already) {
-                    // Apply steps in order until we catch up
                     for (int s = already + 1; s <= stepIndex; s++) {
-                        int eff = Math.min(s, maxStacks); // clamp to maxStacks
+                        int eff = Math.min(s, maxStacks);
                         double cur = Core.session.getScoreMap()
                                 .getOrDefault(id, Core.gameConfig.baseScore);
                         double burn = Math.max(0.0, cur * (p * eff));
@@ -124,13 +145,5 @@ public final class CombatIdleService implements TickBus.Tickable, Resettable {
                 }
             }
         }
-    }
-
-    /* ===================== Helpers ===================== */
-
-    private int negativeGraceTicks() {
-        int ticks = Math.max(1, Core.gameConfig.combatWindowTicks);
-        int neg = -ticks;
-        return (neg == 0 ? -1 : neg);
     }
 }

@@ -12,7 +12,7 @@ import java.util.UUID;
 
 /**
  * Player lifecycle handler.
- * Now uses Core.playerStates for all state management.
+ * Uses Core.playerStates for all state management.
  */
 public final class PlayerService implements Resettable {
 
@@ -20,8 +20,6 @@ public final class PlayerService implements Resettable {
 
     @Override
     public void reset() {
-        // All state is now in PlayerGameStateService
-        // Just cancel any pending tasks
         for (UUID id : Core.session.getParticipantsView()) {
             PlayerGameState state = Core.playerStates.get(id);
             if (state != null) {
@@ -74,27 +72,24 @@ public final class PlayerService implements Resettable {
         PlayerGameState state = Core.playerStates.getOrCreate(id);
 
         // 1) Player was already dead when they disconnected.
-        //    Restart the respawn countdown from scratch.
         if (state.isDead()) {
-            // Cancel any old respawn task
             BukkitTask old = state.getRespawnTask();
             if (old != null) {
                 Core.schedulers.cancelTask(old);
                 state.setRespawnTask(null);
             }
 
-            // Put them into spectator mode, then schedule respawn
             Core.game.setSpectatorAndTeleportToCenter(id);
             scheduleRespawn(p, id);
             return;
         }
 
-        // 2) Already a spectator: do nothing to avoid re-running welcome/TP
+        // 2) Already a spectator
         if (Core.session.getSpectatorsView().contains(id)) {
             return;
         }
 
-        // 3) Fresh joiner: add as spectator
+        // 3) Fresh joiner
         Core.session.addSpectator(id);
 
         Core.notifier.message(
@@ -135,19 +130,19 @@ public final class PlayerService implements Resettable {
         UUID id = p.getUniqueId();
         PlayerGameState state = Core.playerStates.getOrCreate(id);
 
-        // 1) Spectator quit: do nothing
+        // 1) Spectator quit
         if (Core.session.getSpectatorsView().contains(id)) {
             return;
         }
 
-        // 2) Already dead: cancel respawn task
+        // 2) Already dead: cancel respawn task (timer keeps running)
         if (state.isDead()) {
             BukkitTask pending = state.getRespawnTask();
             if (pending != null) {
                 Core.schedulers.cancelTask(pending);
                 state.setRespawnTask(null);
             }
-            // No scoring, already handled
+            // Timer keeps running - they may accumulate penalties
             return;
         }
 
@@ -155,16 +150,14 @@ public final class PlayerService implements Resettable {
         Core.combatOutcomeService.handleLogoutDeath(p);
         state.markDead();
 
-        // Do NOT schedule respawn (offline)
-        // Will restart when they rejoin
-        // TODO : reset idletimer as dead
+        // Reset idle timer to -respawnDelayTicks
+        Core.combatIdleService.onDeath(id);
     }
 
     /* ===================== DEATH ===================== */
 
     public void onDeathIdle(Player p) {
         if (p == null) return;
-        // No-op for now
     }
 
     public void onDeathPregame(Player p) {
@@ -192,15 +185,11 @@ public final class PlayerService implements Resettable {
             return;
         }
 
-        // Death scoring is handled in PlayerLifecycleListener
-        // Core.combatOutcomeService.handlePlayerDeath(p, vanillaMsg);
-
+        // Mark as dead
         state.markDead();
 
-        // ✅ NEW: Reset Idle Timer on death (victim only)
-        // Use negative grace equal to respawn delay
-        int negGrace = -Core.gameConfig.respawnDelayTicks;
-        state.resetIdleToGrace(negGrace);
+        // Reset idle timer to -respawnDelayTicks (timer starts at 0 after respawn)
+        Core.combatIdleService.onDeath(id);
 
         // Move to spectator
         Core.game.setSpectatorAndTeleportToCenter(id);
@@ -211,20 +200,15 @@ public final class PlayerService implements Resettable {
 
     /* ===================== INTERNAL HELPERS ===================== */
 
-    /**
-     * Schedule a respawn for the given player.
-     */
     private void scheduleRespawn(Player original, UUID id) {
         PlayerGameState state = Core.playerStates.getOrCreate(id);
 
-        // Cancel any existing respawn task
         BukkitTask existing = state.getRespawnTask();
         if (existing != null) {
             Core.schedulers.cancelTask(existing);
             state.setRespawnTask(null);
         }
 
-        // Inform the player
         if (original != null && original.isOnline()) {
             try {
                 original.sendTitle("§cYou died", "§fRespawning in 5 seconds", 10, 60, 10);
@@ -239,7 +223,6 @@ public final class PlayerService implements Resettable {
         }
 
         BukkitTask task = Core.schedulers.runLater(() -> {
-            // If match ended, bail out
             if (!Core.session.state().isIngame()) {
                 state.setRespawnTask(null);
                 state.markAlive();
@@ -248,15 +231,12 @@ public final class PlayerService implements Resettable {
 
             Player online = Bukkit.getPlayer(id);
             if (online == null || !online.isOnline()) {
-                // Keep marked as dead for rejoin
                 state.setRespawnTask(null);
                 return;
             }
 
-            // Respawn player
             Core.game.setSurvivalAndTeleportRandomly(id);
 
-            // Mark as alive
             state.resetCombat();
         }, Core.gameConfig.respawnDelayTicks);
 
