@@ -3,10 +3,7 @@ package net.groundzero.app;
 import net.groundzero.game.*;
 import net.groundzero.item.ItemRegistry;
 import net.groundzero.listener.player.InventoryProtectionListener;
-import net.groundzero.service.combat.CombatIdleService;
-import net.groundzero.service.combat.CombatOutcomeService;
-import net.groundzero.service.combat.DamageService;
-import net.groundzero.service.combat.ProjectileService;
+import net.groundzero.service.combat.*;
 import net.groundzero.service.game.GameRuntimeService;
 import net.groundzero.service.game.ScoreboardService;
 import net.groundzero.service.game.VoteService;
@@ -14,6 +11,7 @@ import net.groundzero.service.item.LoadoutService;
 import net.groundzero.service.player.PlayerGameStateService;
 import net.groundzero.service.player.PlayerService;
 import net.groundzero.service.tick.TickBus;
+import net.groundzero.service.game.ActionBarService;
 import net.groundzero.service.ui.GuiService;
 import net.groundzero.util.*;
 import org.bukkit.plugin.Plugin;
@@ -41,6 +39,9 @@ public final class Core {
     public static CombatOutcomeService combatOutcomeService;
     public static CombatIdleService combatIdleService;
     public static ProjectileService projectileService;
+    public static TntService tntService;
+    public static PoisonService poisonService;
+    public static ActionBarService actionBarService;
 
     public static ItemRegistry itemRegistry;
 
@@ -67,13 +68,16 @@ public final class Core {
         voteService = new VoteService();
         guiService = new GuiService();
         playerService = new PlayerService();
-        loadoutService = new LoadoutService();//TODO
+        loadoutService = new LoadoutService();
         damageService = new DamageService();
         scoreboardService = new ScoreboardService();
         gameRuntimeService = new GameRuntimeService();
         combatOutcomeService = new CombatOutcomeService();
         combatIdleService = new CombatIdleService();
         projectileService = new ProjectileService();
+        tntService = new TntService();
+        poisonService = new PoisonService();
+        actionBarService = new ActionBarService();
 
         itemRegistry = new ItemRegistry();
         itemRegistry.init();

@@ -5,6 +5,7 @@ import net.groundzero.listener.combat.CombatListener;
 import net.groundzero.listener.debug.InteractionDebugListener;
 import net.groundzero.listener.player.InventoryProtectionListener;
 import net.groundzero.listener.player.ItemInteractionListener;
+import net.groundzero.listener.player.PlayerItemHeldListener;
 import net.groundzero.listener.player.PlayerLifecycleListener;
 import net.groundzero.listener.ui.GuiClickListener;
 import net.groundzero.listener.world.WorldProtectionListener;
@@ -33,6 +34,7 @@ public final class GroundZero extends JavaPlugin {
         pm.registerEvents(new GuiClickListener(), this);
         pm.registerEvents(new CombatListener(), this);
         pm.registerEvents(new WorldProtectionListener(), this);
+        pm.registerEvents(new PlayerItemHeldListener(), this);
 
         pm.registerEvents(new InteractionDebugListener(), this);
 

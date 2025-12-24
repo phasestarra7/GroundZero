@@ -29,6 +29,9 @@ public class PlayerGameState {
     /* ===== Hotbar Swap (Console) ===== */
     private boolean hotbarSwapped = false;
 
+    /* ===== Weapon Ammo ===== */
+    private int assaultAmmo = 0;
+
     /* =========================================================
        Combat & Death State
        ========================================================= */
@@ -122,6 +125,28 @@ public class PlayerGameState {
     }
 
     /* =========================================================
+       Weapon Ammo
+       ========================================================= */
+
+    public int getAssaultAmmo() {
+        return assaultAmmo;
+    }
+
+    public void setAssaultAmmo(int ammo) {
+        this.assaultAmmo = Math.max(0, ammo);
+    }
+
+    public boolean consumeAssaultAmmo() {
+        if (assaultAmmo <= 0) return false;
+        assaultAmmo--;
+        return true;
+    }
+
+    public void resetAmmo() {
+        this.assaultAmmo = 0;
+    }
+
+    /* =========================================================
        Reset (called on session end)
        ========================================================= */
 
@@ -132,6 +157,7 @@ public class PlayerGameState {
     public void resetAll() {
         resetCombat();
         resetIdle();
+        resetAmmo();
         hotbarSwapped = false;
     }
 }

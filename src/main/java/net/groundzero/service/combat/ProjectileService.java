@@ -21,14 +21,11 @@ import java.util.UUID;
 public final class ProjectileService {
 
     // PDC keys to mark our custom projectiles
-    public static final NamespacedKey KEY_IS_GZ      = new NamespacedKey(Core.plugin, "gz_is_projectile");
-    public static final NamespacedKey KEY_WEAPON_ID  = new NamespacedKey(Core.plugin, "gz_weapon_id");
-    public static final NamespacedKey KEY_OWNER_ID   = new NamespacedKey(Core.plugin, "gz_owner_uuid");
-    public static final NamespacedKey KEY_BASE_DMG   = new NamespacedKey(Core.plugin, "gz_base_damage");
-    public static final NamespacedKey KEY_SHOT_ID    = new NamespacedKey(Core.plugin, "gz_shot_id");
-    public static final NamespacedKey KEY_FLAGS      = new NamespacedKey(Core.plugin, "gz_flags");
-    public static final NamespacedKey KEY_SPAWN_TICK = new NamespacedKey(Core.plugin, "gz_spawn_tick");
-    public static final NamespacedKey KEY_LIFETIME   = new NamespacedKey(Core.plugin, "gz_lifetime");
+    public static final NamespacedKey KEY_PROJ_IS_GZ = new NamespacedKey(Core.plugin, "gz_proj_is_gz");
+    public static final NamespacedKey KEY_PROJ_WEAPON = new NamespacedKey(Core.plugin, "gz_proj_weapon");
+    public static final NamespacedKey KEY_PROJ_OWNER = new NamespacedKey(Core.plugin, "gz_proj_owner");
+    public static final NamespacedKey KEY_PROJ_DAMAGE = new NamespacedKey(Core.plugin, "gz_proj_damage");
+    public static final NamespacedKey KEY_PROJ_FLAGS = new NamespacedKey(Core.plugin, "gz_proj_flags");
 
     private static final Random RNG = new Random();
 
@@ -70,9 +67,6 @@ public final class ProjectileService {
         public int flags = 0;
     }
 
-    /** Spawn and tag a GroundZero arrow; returns the Arrow or null on failure. */
-    // in ProjectileService
-
     /** Spawn and tag a GroundZero arrow by UUID (preferred). Returns the Arrow or null on failure. */
     public Arrow spawnArrow(UUID shooterId, Location origin, Vector direction, ArrowOptions opt) {
         if (shooterId == null || origin == null || direction == null || opt == null) return null;
@@ -110,14 +104,11 @@ public final class ProjectileService {
 
             // Tag as our projectile (authoritative identity & damage live here)
             PersistentDataContainer pdc = a.getPersistentDataContainer();
-            pdc.set(KEY_IS_GZ,      PersistentDataType.BYTE,   (byte)1);
-            pdc.set(KEY_WEAPON_ID,  PersistentDataType.STRING,  opt.weaponId);
-            pdc.set(KEY_OWNER_ID,   PersistentDataType.STRING,  shooterId.toString());
-            pdc.set(KEY_BASE_DMG,   PersistentDataType.DOUBLE,  opt.baseDamage);
-            pdc.set(KEY_SHOT_ID,    PersistentDataType.STRING,  UUID.randomUUID().toString());
-            pdc.set(KEY_FLAGS,      PersistentDataType.INTEGER, opt.flags);
-            pdc.set(KEY_SPAWN_TICK, PersistentDataType.INTEGER, Bukkit.getCurrentTick());
-            pdc.set(KEY_LIFETIME,   PersistentDataType.INTEGER, Math.max(0, opt.lifetimeTicks));
+            pdc.set(KEY_PROJ_IS_GZ,      PersistentDataType.BYTE,   (byte)1);
+            pdc.set(KEY_PROJ_WEAPON,  PersistentDataType.STRING,  opt.weaponId);
+            pdc.set(KEY_PROJ_OWNER,   PersistentDataType.STRING,  shooterId.toString());
+            pdc.set(KEY_PROJ_DAMAGE,   PersistentDataType.DOUBLE,  opt.baseDamage);
+            pdc.set(KEY_PROJ_FLAGS,      PersistentDataType.INTEGER, opt.flags);
         });
 
         // No auto-remove; listeners will remove on confirmed hit.
@@ -127,19 +118,19 @@ public final class ProjectileService {
     /** Check if this arrow is ours. */
     public static boolean isOurArrow(Arrow a) {
         if (a == null) return false;
-        return a.getPersistentDataContainer().has(KEY_IS_GZ, PersistentDataType.BYTE);
+        return a.getPersistentDataContainer().has(KEY_PROJ_IS_GZ, PersistentDataType.BYTE);
     }
 
     /** Extract payload; null if not ours or corrupted. */
     public static Payload readArrowPayload(Arrow a) {
         if (a == null) return null;
         PersistentDataContainer pdc = a.getPersistentDataContainer();
-        if (!pdc.has(KEY_IS_GZ, PersistentDataType.BYTE)) return null;
+        if (!pdc.has(KEY_PROJ_IS_GZ, PersistentDataType.BYTE)) return null;
         try {
-            String weaponId = pdc.get(KEY_WEAPON_ID, PersistentDataType.STRING);
-            String ownerStr = pdc.get(KEY_OWNER_ID, PersistentDataType.STRING);
-            Double dmg = pdc.get(KEY_BASE_DMG, PersistentDataType.DOUBLE);
-            Integer flags = pdc.get(KEY_FLAGS, PersistentDataType.INTEGER);
+            String weaponId = pdc.get(KEY_PROJ_WEAPON, PersistentDataType.STRING);
+            String ownerStr = pdc.get(KEY_PROJ_OWNER, PersistentDataType.STRING);
+            Double dmg = pdc.get(KEY_PROJ_DAMAGE, PersistentDataType.DOUBLE);
+            Integer flags = pdc.get(KEY_PROJ_FLAGS, PersistentDataType.INTEGER);
             if (weaponId == null || ownerStr == null || dmg == null) return null;
             return new Payload(UUID.fromString(ownerStr), weaponId, dmg, flags == null ? 0 : flags);
         } catch (Exception ex) {

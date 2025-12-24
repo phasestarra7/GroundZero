@@ -2,6 +2,7 @@ package net.groundzero.service.item;
 
 import net.groundzero.app.Core;
 import net.groundzero.item.ItemType;
+import net.groundzero.service.player.PlayerGameState;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 
@@ -44,6 +45,8 @@ public class LoadoutService {
         // Give console (slot 8)
         p.getInventory().setItem(8, Core.itemRegistry.createItem(ItemType.CONSOLE, 1));
 
-        // TODO: Initialize weapon ammo state when weapon system is added
+        // Initialize weapon ammo
+        PlayerGameState state = Core.playerStates.getOrCreate(playerId);
+        state.setAssaultAmmo(1000000); // TODO : change this to 0 after shop is created
     }
 }

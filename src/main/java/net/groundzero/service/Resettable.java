@@ -1,4 +1,3 @@
-// service/Resettable.java
 package net.groundzero.service;
 
 /**

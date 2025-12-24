@@ -32,6 +32,11 @@ public class ConsoleHandler implements ItemHandler {
         return true;
     }
 
+    @Override
+    public String getActionBar(Player player, ItemStack item) {
+        return null; // TODO
+    }
+
     /**
      * Swap hotbar slots 0-7 with bottom inventory row slots 27-34
      * Console (slot 8 / 35) stays in place

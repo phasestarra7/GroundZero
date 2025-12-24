@@ -2,18 +2,19 @@ package net.groundzero.listener.combat;
 
 import net.groundzero.app.Core;
 import net.groundzero.listener.BaseListener;
+import net.groundzero.service.combat.PoisonService;
 import net.groundzero.service.combat.ProjectileService;
 import net.groundzero.service.combat.ProjectileService.Payload;
+import net.groundzero.service.combat.TntService;
 import net.groundzero.service.model.DeathCause;
-import org.bukkit.entity.Arrow;
-import org.bukkit.entity.Entity;
-import org.bukkit.entity.LivingEntity;
-import org.bukkit.entity.Player;
+import org.bukkit.Location;
+import org.bukkit.entity.*;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.entity.ProjectileHitEvent;
 import org.bukkit.projectiles.ProjectileSource;
 
@@ -72,21 +73,22 @@ public final class CombatListener extends BaseListener implements Listener {
                 );
             }
 
-            Core.damageService.applyProjectileDamage(attackerId, victim, payload);
+            Core.damageService.applyCustomDamage(attackerId, victim, payload.baseDamage());
             Core.schedulers.runLater(arrow::remove, 1L);
             return;
         }
 
-        /* ===== 2. TNT: Placeholder - handled by TntService ===== */
-        // TntService will:
-        // - Cancel vanilla TNT damage via EntityDamageEvent
-        // - Apply custom damage to entities in blast radius
-        // - Call recordHit with DeathCause.CUSTOM_TNT
+        /* ===== 2. TNT: Cancel vanilla damage (custom damage applied in EntityExplodeEvent) ===== */
+        if (e.getDamager() instanceof TNTPrimed tnt) {
+            if (TntService.isOurTnt(tnt)) {
+                e.setCancelled(true);  // Block vanilla damage only
+            }
+            return;
+        }
 
-        /* ===== 3. POISON: Placeholder - handled by PoisonService ===== */
-        // PoisonService will:
-        // - Apply tick damage via TickBus
-        // - Call recordHit with DeathCause.POISON_TICK
+        /* ===== 3. POISON: Handled by PoisonService (tick-based DoT) ===== */
+        // PoisonService applies damage via TickBus
+        // No event handling needed here
 
         /* ===== 4. MISSILE: Placeholder - handled by MissileService ===== */
         // MissileService will:
@@ -108,7 +110,7 @@ public final class CombatListener extends BaseListener implements Listener {
             return;
         }
 
-        /* ===== 5. VANILLA: Melee P2P ===== */
+        /* ===== 6. VANILLA: Melee P2P ===== */
         if (e.getDamager() instanceof Player attackerP && victim instanceof Player pVictim) {
             Core.damageService.recordHit(
                     pVictim.getUniqueId(),
@@ -120,7 +122,7 @@ public final class CombatListener extends BaseListener implements Listener {
             return;
         }
 
-        /* ===== 6. MOB: Mob -> Player ===== */
+        /* ===== 7. MOB: Mob -> Player ===== */
         if (victim instanceof Player pVictim && !(e.getDamager() instanceof Player)) {
             Core.damageService.recordHit(
                     pVictim.getUniqueId(),
@@ -132,6 +134,30 @@ public final class CombatListener extends BaseListener implements Listener {
         }
     }
 
+    /* ==================== TNT EXPLOSION ==================== */
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onEntityExplode(EntityExplodeEvent e) {
+        if (!(e.getEntity() instanceof TNTPrimed tnt)) return;
+        if (!TntService.isOurTnt(tnt)) return;
+
+        TntService.Payload payload = TntService.readTntPayload(tnt);
+        if (payload == null) return;
+
+        // Don't cancel event - let blocks explode normally
+        // Vanilla damage already cancelled in EntityDamageByEntityEvent
+
+        // Apply custom damage to entities in blast radius
+        Location center = tnt.getLocation();
+        Core.damageService.applyTntDamage(
+                payload.owner(),
+                center,
+                payload.blastRadius(),
+                payload.baseDamage(),
+                payload.weaponId()
+        );
+    }
+
     /* ==================== ENVIRONMENT DAMAGE ==================== */
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
@@ -141,6 +167,14 @@ public final class CombatListener extends BaseListener implements Listener {
         if (!(e.getEntity() instanceof Player victim)) return;
         if (Core.damageService.isProcessingDamage(victim)) return;
         if (!Core.session.state().isIngame()) return;
+
+        // Block vanilla WITHER damage if player has custom poison
+        if (e.getCause() == EntityDamageEvent.DamageCause.WITHER) {
+            if (PoisonService.isCustomPoisonEffect(victim)) {
+                e.setCancelled(true);
+                return;
+            }
+        }
 
         DeathCause cause = Core.damageService.mapVanillaCause(e.getCause(), false);
 

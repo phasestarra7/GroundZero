@@ -101,7 +101,7 @@ public final class Notifier {
     }
 
     /**
-     * Sound-only broadcast (this가 네가 말한 "sound도 브로드캐스팅처럼" 그거)
+     * Sound-only broadcast
      */
     public void broadcastSound(Iterable<?> targets,
                                Sound sound,
@@ -137,16 +137,5 @@ public final class Notifier {
         if (p != null && p.isOnline()) {
             sound(p, sound, pitch);
         }
-    }
-
-    /**
-     * was: soundToParticipants(...) but now we do not call GameManager.
-     */
-    public void soundToParticipants(Sound sound, PitchLevel pitch) {
-        broadcastSound(Core.game.session().getParticipantsView(), sound, pitch);
-    }
-
-    public void soundToAll(Sound sound, PitchLevel pitch) {
-        broadcastSound(Bukkit.getOnlinePlayers(), sound, pitch);
     }
 }

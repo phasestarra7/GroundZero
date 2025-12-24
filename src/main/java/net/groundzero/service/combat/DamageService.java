@@ -5,6 +5,8 @@ import net.groundzero.service.model.LastHit;
 import net.groundzero.service.model.DeathCause;
 import net.groundzero.service.combat.ProjectileService.Payload;
 import org.bukkit.Bukkit;
+import org.bukkit.Location;
+import org.bukkit.World;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.entity.EntityDamageEvent;
@@ -172,37 +174,8 @@ public final class DamageService {
     }
 
     /**
-     * Apply custom projectile damage with i-frame removal.
-     */
-    public void applyProjectileDamage(UUID attackerId, LivingEntity victim, Payload payload) {
-        if (victim == null || payload == null) return;
-        if (!Core.session.state().isIngame()) return;
-
-        final double amount = Math.max(0.0, payload.baseDamage());
-        final Player attacker = (attackerId != null) ? Bukkit.getPlayer(attackerId) : null;
-
-        markProcessingDamage(victim);
-
-        final Vector preVel = victim.getVelocity();
-        final int oldNoDamageTicks = victim.getNoDamageTicks();
-        victim.setNoDamageTicks(0);
-
-        try {
-            if (attacker != null && attacker.isOnline()) {
-                victim.damage(amount, attacker);
-            } else {
-                victim.damage(amount);
-            }
-            victim.setVelocity(preVel);
-            victim.setNoDamageTicks(0);
-        } catch (Throwable t) {
-            try { victim.setNoDamageTicks(oldNoDamageTicks); } catch (Throwable ignored) {}
-            throw t;
-        }
-    }
-
-    /**
-     * Apply custom damage (for TNT, poison tick, missile, etc.)
+     * Apply custom damage with i-frame removal and no knockback.
+     * Used for: projectiles, TNT, poison, missiles, etc.
      */
     public void applyCustomDamage(UUID attackerId, LivingEntity victim, double amount) {
         if (victim == null || amount <= 0) return;
@@ -227,6 +200,55 @@ public final class DamageService {
         } catch (Throwable t) {
             try { victim.setNoDamageTicks(oldNoDamageTicks); } catch (Throwable ignored) {}
             throw t;
+        }
+    }
+
+    /**
+     * Apply TNT explosion damage to all entities in radius.
+     * Uses distance-based damage falloff (linear: 100% at center, 0% at radius edge).
+     *
+     * @param attackerId TNT owner UUID
+     * @param center     Explosion center
+     * @param radius     Blast radius
+     * @param baseDamage Maximum damage at center
+     * @param weaponId   Weapon ID for death cause
+     */
+    public void applyTntDamage(UUID attackerId, Location center, double radius, double baseDamage, String weaponId) {
+        if (center == null || center.getWorld() == null) return;
+        if (radius <= 0 || baseDamage <= 0) return;
+        if (!Core.session.state().isIngame()) return;
+
+        World w = center.getWorld();
+        double radiusSq = radius * radius;
+
+        // Find all LivingEntities in blast radius
+        for (org.bukkit.entity.Entity ent : w.getNearbyEntities(center, radius, radius, radius)) {
+            if (!(ent instanceof LivingEntity victim)) continue;
+
+            // Calculate distance from center
+            double distSq = ent.getLocation().distanceSquared(center);
+            if (distSq > radiusSq) continue;
+
+            // Calculate damage falloff (linear: 100% at center, 0% at radius edge)
+            double dist = Math.sqrt(distSq);
+            double falloff = Math.max(0.0, 1.0 - (dist / radius));
+            double finalDamage = baseDamage * falloff;
+
+            if (finalDamage <= 0) continue;
+
+            // Record hit for players
+            if (victim instanceof Player pVictim) {
+                recordHit(
+                        pVictim.getUniqueId(),
+                        attackerId,
+                        DeathCause.CUSTOM_TNT,
+                        weaponId,
+                        finalDamage
+                );
+            }
+
+            // Apply damage with i-frame removal and no knockback
+            applyCustomDamage(attackerId, victim, finalDamage);
         }
     }
 }

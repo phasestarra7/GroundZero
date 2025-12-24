@@ -205,6 +205,9 @@ public class GameManager {
         if (Core.gameRuntimeService != null) Core.gameRuntimeService.stop();
         if (Core.scoreboardService != null) Core.scoreboardService.stop();
         if (Core.combatIdleService != null) Core.combatIdleService.stop();
+        if (Core.tntService != null) Core.tntService.stop();
+        if (Core.poisonService != null) Core.poisonService.stop();
+        if (Core.actionBarService != null) Core.actionBarService.stop();
         if (Core.tickBus != null) Core.tickBus.stop();
     }
 
@@ -399,6 +402,9 @@ public class GameManager {
         Core.gameRuntimeService.start(session);
         Core.scoreboardService.start(session);
         Core.combatIdleService.start();
+        Core.tntService.start();
+        Core.poisonService.start();
+        Core.actionBarService.start();
         Core.tickBus.start();
 
         // Setup participants
