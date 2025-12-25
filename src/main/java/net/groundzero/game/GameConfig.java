@@ -54,9 +54,95 @@ public class GameConfig {
     /* ===== actionbar ===== */
     public int actionBarIntervalTicks = 10;
 
+    /* ===== gui, itemdata ===== */
+    public int assaultPrice = 100;
+    public int autoPrice = 100;
+    public int sniperPrice = 100;
+    public int RPGPrice = 100;
+    public int concussivePrice = 100;
+    public int smokePrice = 100;
+
+    public int medkitPrice = 100;
+    public int blocksPrice = 100;
+    public int bridgePrice = 100;
+    public int bunkerPrice = 100;
+    public int antiexpPrice = 100;
+    public int pearlPrice = 100;
+
+    public int aerialSimplePrice = 100;
+    public int aerialArrowPrice = 100;
+    public int aerialClusterPrice = 100;
+    public int aerialSpreaderPrice = 100;
+    public int aerialCarpetPrice = 100;
+    public int aerialHackPrice = 100;
+
+    public int missileSimplePrice = 100;
+    public int missilePoisonPrice = 100;
+    public int missileBunkerPrice = 100;
+    public int missileHighExpPrice = 100;
+    public int missileNuclearPrice = 100;
+    public int missileABMPrice = 100;
+
+    public double assaultIncome = 0.1;
+    public double autoIncome = 0.1;
+    public double sniperIncome = 0.1;
+    public double RPGIncome = 0.1;
+    public double concussiveIncome = 0.1;
+    public double smokeIncome = 0.1;
+
+    public double medkitIncome = 0.1;
+    public double blocksIncome = 0.1;
+    public double bridgeIncome = 0.1;
+    public double bunkerIncome = 0.1;
+    public double antiexpIncome = 0.1;
+    public double pearlIncome = 0.1;
+
+    public double aerialSimpleIncome = 0.1;
+    public double aerialArrowIncome = 0.1;
+    public double aerialClusterIncome = 0.1;
+    public double aerialSpreaderIncome = 0.1;
+    public double aerialCarpetIncome = 0.1;
+    public double aerialHackIncome = 0.1;
+
+    public double missileSimpleIncome = 0.1;
+    public double missilePoisonIncome = 0.1;
+    public double missileBunkerIncome = 0.1;
+    public double missileHighExpIncome = 0.1;
+    public double missileNuclearIncome = 0.1;
+    public double missileABMIncome = 0.1;
+
+    public int assaultAmount = 30;
+    public int autoAmount = 60;
+    public int sniperAmount = 5;
+    public int rpgAmount = 5;
+    // above is magazine size
+    public int concussiveAmount = 1;
+    public int smokeAmount = 1;
+
+    public int medkitAmount = 1;
+    public int blocksAmount = 64;
+    public int bridgeAmount = 1;
+    public int bunkerAmount = 1;
+    public int antiexpAmount = 1;
+    public int pearlAmount = 1;
+
+    public int aerialSimpleAmount = 1;
+    public int aerialArrowAmount = 1;
+    public int aerialClusterAmount = 1;
+    public int aerialSpreaderAmount = 1;
+    public int aerialCarpetAmount = 1;
+    public int aerialHackAmount = 1;
+
+    public int missileSimpleAmount = 1;
+    public int missilePoisonAmount = 1;
+    public int missileBunkerAmount = 1;
+    public int missileHighExpAmount = 1;
+    public int missileNuclearAmount = 1;
+    public int missileAbmAmount = 1;
+
     /* ===== items ===== */
     public double assaultDamage = 5.0;
-    public double assaultProjectileSpeed = 3.0;
+    public double assaultProjectileSpeed = 5.0;
     public double assaultSpread = 0.02;
     public int assaultCooldownTicks = 0;
     public int assaultMagazineSize = 30;

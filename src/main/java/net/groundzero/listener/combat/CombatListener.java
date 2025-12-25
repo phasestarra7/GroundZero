@@ -73,7 +73,7 @@ public final class CombatListener extends BaseListener implements Listener {
                 );
             }
 
-            Core.damageService.applyCustomDamage(attackerId, victim, payload.baseDamage());
+            Core.damageService.applyProjectileDamage(attackerId, victim, payload);
             Core.schedulers.runLater(arrow::remove, 1L);
             return;
         }

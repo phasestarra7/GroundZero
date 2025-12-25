@@ -8,6 +8,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.entity.LivingEntity;
+import org.bukkit.entity.Mob;
 import org.bukkit.entity.Player;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.metadata.FixedMetadataValue;
@@ -190,17 +191,34 @@ public final class DamageService {
         victim.setNoDamageTicks(0);
 
         try {
+            // CRITICAL: Set killer for mobs BEFORE damage
+            // This ensures drops work correctly even though we cancelled original event
+            if (victim instanceof Mob mob && attacker != null && attacker.isOnline()) {
+                mob.setKiller(attacker);
+            }
+
             if (attacker != null && attacker.isOnline()) {
                 victim.damage(amount, attacker);
             } else {
                 victim.damage(amount);
             }
+
             victim.setVelocity(preVel);
             victim.setNoDamageTicks(0);
         } catch (Throwable t) {
             try { victim.setNoDamageTicks(oldNoDamageTicks); } catch (Throwable ignored) {}
             throw t;
         }
+    }
+
+    /**
+     * Apply projectile damage (Arrow-based weapons).
+     * Wrapper for applyCustomDamage with payload extraction.
+     */
+    public void applyProjectileDamage(UUID attackerId, LivingEntity victim,
+                                      net.groundzero.service.combat.ProjectileService.Payload payload) {
+        if (payload == null) return;
+        applyCustomDamage(attackerId, victim, payload.baseDamage());
     }
 
     /**

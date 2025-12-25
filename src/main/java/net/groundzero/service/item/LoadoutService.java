@@ -10,7 +10,16 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * Manages player loadouts at game start
+ * Manages player loadouts at game start.
+ *
+ * Initial loadout:
+ * - Slot 0: Assault Rifle (0 ammo)
+ * - Slot 1: Auto Rifle (0 ammo)
+ * - Slot 2: Sniper Rifle (0 ammo)
+ * - Slot 3: RPG (0 ammo)
+ * - Slot 8: Console
+ *
+ * All weapons start with 0 ammo - players must purchase ammo from shop.
  */
 public class LoadoutService {
 
@@ -36,17 +45,20 @@ public class LoadoutService {
         // Clear inventory
         p.getInventory().clear();
 
-        // Give non-consumable weapons (slots 0-3)
-        p.getInventory().setItem(0, Core.itemRegistry.createItem(ItemType.ASSAULT, 1));
-        p.getInventory().setItem(1, Core.itemRegistry.createItem(ItemType.AUTO, 1));
-        p.getInventory().setItem(2, Core.itemRegistry.createItem(ItemType.SNIPER, 1));
-        p.getInventory().setItem(3, Core.itemRegistry.createItem(ItemType.RPG, 1));
+        // Give non-consumable weapons (slots 0-3) with inventory text
+        p.getInventory().setItem(0, Core.itemRegistry.createItemForInventory(ItemType.ASSAULT, 1));
+        p.getInventory().setItem(1, Core.itemRegistry.createItemForInventory(ItemType.AUTO, 1));
+        p.getInventory().setItem(2, Core.itemRegistry.createItemForInventory(ItemType.SNIPER, 1));
+        p.getInventory().setItem(3, Core.itemRegistry.createItemForInventory(ItemType.RPG, 1));
 
         // Give console (slot 8)
-        p.getInventory().setItem(8, Core.itemRegistry.createItem(ItemType.CONSOLE, 1));
+        p.getInventory().setItem(8, Core.itemRegistry.createItemForInventory(ItemType.CONSOLE, 1));
 
-        // Initialize weapon ammo
+        // Initialize weapon ammo (all start at 0)
         PlayerGameState state = Core.playerStates.getOrCreate(playerId);
-        state.setAssaultAmmo(1000000); // TODO : change this to 0 after shop is created
+        state.setAssaultAmmo(0);
+        // TODO: state.setAutoAmmo(0);
+        // TODO: state.setSniperAmmo(0);
+        // TODO: state.setRpgAmmo(0);
     }
 }

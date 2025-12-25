@@ -1,10 +1,10 @@
 package net.groundzero.service.ui;
 
+import net.groundzero.app.Core;
+import net.groundzero.item.ItemTexts;
 import net.groundzero.ui.MenuType;
 import net.groundzero.ui.holder.GroundZeroMenuHolder;
-import net.groundzero.ui.options.GameModeOption;
-import net.groundzero.ui.options.IncomeOption;
-import net.groundzero.ui.options.MapSizeOption;
+import net.groundzero.ui.options.*;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
@@ -20,6 +20,7 @@ import static org.bukkit.Bukkit.createInventory;
 /**
  * GUI build/open/close only.
  * Voting-specific logic is handled in VoteService.
+ * Shop purchase logic is handled in ShopService.
  */
 public final class GuiService {
 
@@ -97,7 +98,20 @@ public final class GuiService {
                 54,
                 "Call Support"
         );
-//        inv.setItem();
+
+        // Add category headers (left column)
+        for (ShopCategory cat : ShopCategory.values()) {
+            ItemStack item = Core.itemRegistry.createItem(cat.type, 1);
+            ItemTexts.applyCategoryText(item, cat.type);
+            inv.setItem(cat.slot, item);
+        }
+
+        // Add purchasable items
+        for (ShopItem shopItem : ShopItem.values()) {
+            ItemStack item = Core.itemRegistry.createItem(shopItem.type, 1);
+            ItemTexts.applyShopText(item, shopItem.type, shopItem.getPrice(), shopItem.getIncomeAdd(), shopItem.getAmount());
+            inv.setItem(shopItem.slot, item);
+        }
 
         return inv;
     }

@@ -3,7 +3,9 @@ package net.groundzero.item.handler;
 import net.groundzero.app.Core;
 import net.groundzero.service.combat.ProjectileService;
 import net.groundzero.service.player.PlayerGameState;
+import net.groundzero.util.Notifier;
 import org.bukkit.Location;
+import org.bukkit.Sound;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.util.Vector;
@@ -46,6 +48,7 @@ public class AssaultHandler implements ItemHandler {
                 direction,
                 opt
         );
+        Core.notifier.sound(player, Sound.ENTITY_GENERIC_EXPLODE, Notifier.PitchLevel.HIGH);
 
         // Update ActionBar immediately (ammo changed)
         Core.actionBarService.updateImmediately(player.getUniqueId());
@@ -58,14 +61,5 @@ public class AssaultHandler implements ItemHandler {
         // TODO: ADS mode toggle
         Core.notifier.message(player, false, "ADS mode (TODO)");
         return true;
-    }
-
-    @Override
-    public String getActionBar(Player player, ItemStack item) {
-        PlayerGameState state = Core.playerStates.getOrCreate(player.getUniqueId());
-        int ammo = state.getAssaultAmmo();
-        int max = Core.gameConfig.assaultMagazineSize;
-
-        return String.format("&e[L]&f Fire Assault Rifle &a(Ammo: %d/%d) &e[R]&f Enter ADS Mode", ammo, max);
     }
 }

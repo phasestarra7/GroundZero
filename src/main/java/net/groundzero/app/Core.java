@@ -10,6 +10,7 @@ import net.groundzero.service.game.VoteService;
 import net.groundzero.service.item.LoadoutService;
 import net.groundzero.service.player.PlayerGameStateService;
 import net.groundzero.service.player.PlayerService;
+import net.groundzero.service.shop.ShopService;
 import net.groundzero.service.tick.TickBus;
 import net.groundzero.service.game.ActionBarService;
 import net.groundzero.service.ui.GuiService;
@@ -30,6 +31,7 @@ public final class Core {
     public static PlayerGameStateService playerStates;
 
     public static GuiService guiService;
+    public static ShopService shopService;
     public static PlayerService playerService;
     public static LoadoutService loadoutService;
     public static DamageService damageService;
@@ -67,6 +69,7 @@ public final class Core {
         // services
         voteService = new VoteService();
         guiService = new GuiService();
+        shopService = new ShopService();
         playerService = new PlayerService();
         loadoutService = new LoadoutService();
         damageService = new DamageService();

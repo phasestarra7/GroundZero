@@ -9,13 +9,21 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
 
-import java.util.ArrayList;
 import java.util.EnumMap;
-import java.util.List;
 import java.util.Map;
 
 /**
- * Central registry for item creation and handler management
+ * Central registry for item creation and handler management.
+ *
+ * createItem() now only creates the "shell":
+ * - Material (PAPER)
+ * - CustomModelData (for resource pack)
+ * - PDC tag (item identification)
+ *
+ * Text (name/lore) is applied separately by:
+ * - LoadoutService: ItemTexts.applyInventoryText()
+ * - GuiService: ItemTexts.applyShopText() or applyCategoryText()
+ * - ShopService: ItemTexts.applyInventoryText() when giving purchased item
  */
 public class ItemRegistry {
 
@@ -24,8 +32,8 @@ public class ItemRegistry {
     private final Map<ItemType, ItemHandler> handlers = new EnumMap<>(ItemType.class);
 
     /**
-     * Register all item handlers
-     * Called during plugin initialization
+     * Register all item handlers.
+     * Called during plugin initialization.
      */
     public void init() {
         // Console
@@ -65,7 +73,8 @@ public class ItemRegistry {
     }
 
     /**
-     * Create an ItemStack for given type
+     * Create a bare ItemStack (shell only, no text).
+     * Caller must apply appropriate text via ItemTexts.
      */
     public ItemStack createItem(ItemType type, int amount) {
         ItemStack item = new ItemStack(Material.PAPER, amount);
@@ -74,40 +83,28 @@ public class ItemRegistry {
         // Set custom model data for resource pack
         meta.setCustomModelData(type.customModelData);
 
-        // Tag with PDC
+        // Tag with PDC for identification
         meta.getPersistentDataContainer().set(
                 KEY_ITEM_ID,
                 PersistentDataType.STRING,
                 type.id
         );
 
-        // Set display name
-        meta.setDisplayName("§b" + type.displayName);
-
-        // Set lore based on item type
-        List<String> lore = new ArrayList<>();
-        lore.add("");
-
-        if (type == ItemType.CONSOLE) {
-            lore.add("§7Left click: §fOpen shop");
-            lore.add("§7Right click: §fSwap hotbar");
-        } else if (type == ItemType.ASSAULT || type == ItemType.AUTO ||
-                type == ItemType.SNIPER || type == ItemType.RPG) {
-            // Non-consumable weapons (TODO: add ammo system later)
-            lore.add("§7Left click: §fFire");
-            lore.add("§7Right click: §fReload");
-        } else {
-            // All other items are consumable
-            lore.add("§7Right click: §fUse");
-        }
-
-        meta.setLore(lore);
-
         // Hide all flags for cleaner look
         meta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES);
         meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
 
         item.setItemMeta(meta);
+        return item;
+    }
+
+    /**
+     * Create item with inventory text applied.
+     * Convenience method for giving items to players.
+     */
+    public ItemStack createItemForInventory(ItemType type, int amount) {
+        ItemStack item = createItem(type, amount);
+        ItemTexts.applyInventoryText(item, type);
         return item;
     }
 

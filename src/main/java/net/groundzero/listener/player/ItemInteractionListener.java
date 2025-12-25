@@ -4,6 +4,7 @@ import net.groundzero.app.Core;
 import net.groundzero.item.ItemType;
 import net.groundzero.item.handler.ItemHandler;
 import net.groundzero.listener.BaseListener;
+import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -128,11 +129,24 @@ public class ItemInteractionListener extends BaseListener implements Listener {
 
     /**
      * Handle entity attacks directly (no fake events here)
+     *
+     * IMPORTANT: Must check isProcessingDamage to prevent infinite loop!
+     * When applyCustomDamage() calls victim.damage(amount, attacker),
+     * it triggers a new EntityDamageByEntityEvent with Player as damager.
      */
     @EventHandler(priority = EventPriority.HIGH)
     public void onEntityDamage(EntityDamageByEntityEvent event) {
         if (!(event.getDamager() instanceof Player player)) return;
         if (!Core.session.state().isIngame()) return;
+
+        // CRITICAL: Skip if this is a re-triggered event from applyCustomDamage()
+        // Without this check: left-click -> arrow -> hit -> applyCustomDamage ->
+        // damage(amount, player) -> new event -> left-click -> infinite loop!
+        if (event.getEntity() instanceof LivingEntity victim) {
+            if (Core.damageService.isProcessingDamage(victim)) {
+                return;
+            }
+        }
 
         // Get item in main hand
         ItemStack item = player.getInventory().getItemInMainHand();

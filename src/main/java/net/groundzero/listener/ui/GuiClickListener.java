@@ -4,9 +4,7 @@ import net.groundzero.app.Core;
 import net.groundzero.listener.BaseListener;
 import net.groundzero.ui.MenuType;
 import net.groundzero.ui.holder.GroundZeroMenuHolder;
-import net.groundzero.ui.options.GameModeOption;
-import net.groundzero.ui.options.IncomeOption;
-import net.groundzero.ui.options.MapSizeOption;
+import net.groundzero.ui.options.*;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -102,8 +100,8 @@ public final class GuiClickListener extends BaseListener implements Listener {
                     }
                 }
                 case SHOP -> {
-                    // TODO: Shop click routing
-                    // Example: if (raw == WEAPON_CATEGORY_SLOT) { openWeaponShop(p); }
+                    // Delegate to ShopService
+                    Core.shopService.handleShopClick(p.getUniqueId(), raw);
                 }
             }
             return;

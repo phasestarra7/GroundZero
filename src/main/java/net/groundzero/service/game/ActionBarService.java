@@ -1,6 +1,7 @@
 package net.groundzero.service.game;
 
 import net.groundzero.app.Core;
+import net.groundzero.item.ItemTexts;
 import net.groundzero.item.ItemType;
 import net.groundzero.item.handler.ItemHandler;
 import net.groundzero.service.Resettable;
@@ -119,14 +120,6 @@ public final class ActionBarService implements TickBus.Tickable, Resettable {
         // Generate message
         String message = generateMessage(player, item);
 
-        // Check if changed
-        String prev = lastMessage.get(playerId);
-        if (message.equals(prev)) {
-            // Message unchanged, but still update tick to prevent drift
-            lastUpdateTick.put(playerId, currentTick);
-            return;
-        }
-
         // Send ActionBar
         if (message.isEmpty()) {
             player.sendActionBar(Component.empty());
@@ -159,71 +152,41 @@ public final class ActionBarService implements TickBus.Tickable, Resettable {
             return ""; // Hide ActionBar for vanilla items
         }
 
-        // Get handler
-        ItemHandler handler = Core.itemRegistry.getHandler(type);
-        if (handler == null) {
-            return ""; // No handler, hide ActionBar
-        }
-
-        // Ask handler for message
-        String message = handler.getActionBar(player, item);
-        if (message == null) {
-            // Handler returned null, use default message
-            return generateDefaultMessage(type);
-        }
-
-        return message;
+        // Generate message using ItemTexts
+        return generateDefaultMessage(player, type);
     }
 
     /**
-     * Generate default message for an item type.
-     * Used when handler doesn't provide custom message.
+     * Generate ActionBar message using ItemTexts.
      */
-    private String generateDefaultMessage(ItemType type) {
-        return switch (type) {
-            case CONSOLE ->
-                    "&e[L]&f Open Shop  &e[R]&f Swap Hotbar";
+    private String generateDefaultMessage(Player player, ItemType type) {
+        var state = Core.playerStates.getOrCreate(player.getUniqueId());
 
-            case ASSAULT, AUTO, SNIPER, RPG ->
-                    "&e[L]&f Fire  &e[R]&f Act";
+        int currentAmmo = 0;
+        int maxAmmo = 0;
 
-            case CONCUSSIVE, SMOKE ->
-                    "&e[R]&f Use";
+        // Get ammo for magazine-based weapons
+        switch (type) {
+            case ASSAULT -> {
+                currentAmmo = state.getAssaultAmmo();
+                maxAmmo = Core.gameConfig.assaultAmount;
+            }
+            case AUTO -> {
+                // TODO: currentAmmo = state.getAutoAmmo();
+                maxAmmo = Core.gameConfig.autoAmount;
+            }
+            case SNIPER -> {
+                // TODO: currentAmmo = state.getSniperAmmo();
+                maxAmmo = Core.gameConfig.sniperAmount;
+            }
+            case RPG -> {
+                // TODO: currentAmmo = state.getRpgAmmo();
+                maxAmmo = Core.gameConfig.rpgAmount;
+            }
+            default -> {}
+        }
 
-            case MEDKIT ->
-                    "&e[R]&f Heal";
-
-            case BLOCKS ->
-                    "&7Vanilla blocks";
-
-            case BRIDGE ->
-                    "&e[R]&f Deploy Bridge";
-
-            case BUNKER ->
-                    "&e[R]&f Deploy Bunker";
-
-            case ANTIEXP ->
-                    "&e[R]&f Deploy Anti-Explosive";
-
-            case PEARL ->
-                    "&7Vanilla ender pearl";
-
-            case AERIAL_SIMPLE, AERIAL_ARROW, AERIAL_CLUSTER,
-                 AERIAL_SPREADER, AERIAL_CARPET ->
-                    "&e[R]&f Call Airstrike";
-
-            case AERIAL_HACK ->
-                    "&e[R]&f Fire Remote Hack";
-
-            case MISSILE_SIMPLE, MISSILE_POISON, MISSILE_BUNKER,
-                 MISSILE_HIGHEXP, MISSILE_NUCLEAR ->
-                    "&e[L]&f Set Target  &e[R]&f Launch";
-
-            case MISSILE_ABM ->
-                    "&e[R]&f Fire ABM";
-
-            default -> "";
-        };
+        return ItemTexts.getActionBar(type, currentAmmo, maxAmmo);
     }
 
     /* ===================== Utility ===================== */

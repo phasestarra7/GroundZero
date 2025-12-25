@@ -2,6 +2,7 @@ package net.groundzero.listener.player;
 
 import net.groundzero.app.Core;
 import net.groundzero.listener.BaseListener;
+import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
@@ -17,7 +18,13 @@ public final class PlayerItemHeldListener extends BaseListener implements Listen
     public void onItemHeld(PlayerItemHeldEvent event) {
         if (!Core.session.state().isIngame()) return;
 
-        // Immediate update on slot change
-        Core.actionBarService.updateImmediately(event.getPlayer().getUniqueId());
+        // 1tick delay, item is changed after the event call
+        // getItemInMainHand() returns previous item, so update after change
+        Player player = event.getPlayer();
+        Core.schedulers.runLater(() -> {
+            if (player.isOnline() && Core.session.state().isIngame()) {
+                Core.actionBarService.updateImmediately(player.getUniqueId());
+            }
+        }, 1L);
     }
 }
