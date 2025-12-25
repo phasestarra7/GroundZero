@@ -19,6 +19,7 @@ import java.util.Iterator;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import net.groundzero.service.GameService;
 
 /**
  * Spawns and manages GroundZero TNT projectiles.
@@ -29,7 +30,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * 3. On collision: setFuseTicks(0) → immediate explosion
  * 4. EntityExplodeEvent routes to DamageService for custom damage
  */
-public final class TntService implements TickBus.Tickable {
+public final class TntService implements TickBus.Tickable, GameService {
 
     // PDC keys for custom TNT entities
     public static final NamespacedKey KEY_TNT_IS_GZ  = new NamespacedKey(Core.plugin, "gz_tnt_is_gz");
@@ -73,12 +74,13 @@ public final class TntService implements TickBus.Tickable {
         Core.tickBus.register(this);
     }
 
+    @Override
     public void stop() {
         if (!running) return;
         running = false;
         Core.tickBus.unregister(this);
 
-        // Clean up active TNTs
+        // Remove TNT entities from world
         for (TNTPrimed tnt : activeTnts) {
             try {
                 if (tnt != null && tnt.isValid()) {
@@ -86,11 +88,11 @@ public final class TntService implements TickBus.Tickable {
                 }
             } catch (Throwable ignored) {}
         }
-        activeTnts.clear();
     }
 
+    @Override
     public void reset() {
-        stop();
+        activeTnts.clear();
     }
 
     /* ===================== TNT Spawning ===================== */

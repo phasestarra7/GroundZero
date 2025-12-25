@@ -3,13 +3,12 @@ package net.groundzero.service.game;
 import net.groundzero.app.Core;
 import net.groundzero.item.ItemTexts;
 import net.groundzero.item.ItemType;
-import net.groundzero.item.handler.ItemHandler;
-import net.groundzero.service.Resettable;
 import net.groundzero.service.tick.TickBus;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
+import net.groundzero.service.GameService;
 
 import java.util.Map;
 import java.util.UUID;
@@ -25,7 +24,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * - lastMessage cache prevents redundant sendActionBar() calls
  * - ItemHandler.getActionBar() provides item-specific messages
  */
-public final class ActionBarService implements TickBus.Tickable, Resettable {
+public final class ActionBarService implements TickBus.Tickable, GameService {
 
     // Update interval (default : 10 ticks = 0.5 seconds)
     private static final int UPDATE_INTERVAL_TICKS = Core.gameConfig.actionBarIntervalTicks;
@@ -44,13 +43,9 @@ public final class ActionBarService implements TickBus.Tickable, Resettable {
         Core.tickBus.register(this);
     }
 
+    @Override
     public void stop() {
         if (!running) return;
-        reset();
-    }
-
-    @Override
-    public void reset() {
         running = false;
         Core.tickBus.unregister(this);
 
@@ -61,7 +56,10 @@ public final class ActionBarService implements TickBus.Tickable, Resettable {
                 p.sendActionBar(Component.empty());
             }
         }
+    }
 
+    @Override
+    public void reset() {
         lastUpdateTick.clear();
         lastMessage.clear();
     }

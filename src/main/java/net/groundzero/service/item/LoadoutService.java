@@ -4,6 +4,7 @@ import net.groundzero.app.Core;
 import net.groundzero.item.ItemType;
 import net.groundzero.service.player.PlayerGameState;
 import org.bukkit.Bukkit;
+import net.groundzero.service.GameService;
 import org.bukkit.entity.Player;
 
 import java.util.Set;
@@ -21,7 +22,12 @@ import java.util.UUID;
  *
  * All weapons start with 0 ammo - players must purchase ammo from shop.
  */
-public class LoadoutService {
+public class LoadoutService implements GameService {
+
+    @Override
+    public void reset() {
+        // Stateless service, nothing to reset
+    }
 
     /**
      * Give initial loadout to all participants

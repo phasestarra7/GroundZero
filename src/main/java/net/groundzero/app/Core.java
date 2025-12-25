@@ -1,9 +1,12 @@
 package net.groundzero.app;
 
-import net.groundzero.game.*;
+import net.groundzero.game.GameConfig;
+import net.groundzero.game.GameManager;
+import net.groundzero.game.GameSession;
 import net.groundzero.item.ItemRegistry;
-import net.groundzero.listener.player.InventoryProtectionListener;
+import net.groundzero.service.GameService;
 import net.groundzero.service.combat.*;
+import net.groundzero.service.game.ActionBarService;
 import net.groundzero.service.game.GameRuntimeService;
 import net.groundzero.service.game.ScoreboardService;
 import net.groundzero.service.game.VoteService;
@@ -12,10 +15,13 @@ import net.groundzero.service.player.PlayerGameStateService;
 import net.groundzero.service.player.PlayerService;
 import net.groundzero.service.shop.ShopService;
 import net.groundzero.service.tick.TickBus;
-import net.groundzero.service.game.ActionBarService;
 import net.groundzero.service.ui.GuiService;
-import net.groundzero.util.*;
+import net.groundzero.util.Notifier;
+import net.groundzero.util.Schedulers;
 import org.bukkit.plugin.Plugin;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public final class Core {
 
@@ -48,6 +54,7 @@ public final class Core {
     public static ItemRegistry itemRegistry;
 
     public static TickBus tickBus;
+    public static List<GameService> gameServices = new ArrayList<>();
 
     private Core() {}
 
@@ -86,5 +93,20 @@ public final class Core {
         itemRegistry.init();
 
         tickBus = new TickBus();
+
+        // Register game services for lifecycle management
+        gameServices.add(playerStates);
+        gameServices.add(voteService);
+        gameServices.add(guiService);
+        gameServices.add(shopService);
+        gameServices.add(playerService);
+        gameServices.add(loadoutService);
+        gameServices.add(damageService);
+        gameServices.add(scoreboardService);
+        gameServices.add(gameRuntimeService);
+        gameServices.add(combatIdleService);
+        gameServices.add(tntService);
+        gameServices.add(poisonService);
+        gameServices.add(actionBarService);
     }
 }

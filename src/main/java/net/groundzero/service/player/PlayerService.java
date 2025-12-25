@@ -1,12 +1,12 @@
 package net.groundzero.service.player;
 
 import net.groundzero.app.Core;
-import net.groundzero.service.Resettable;
 import net.groundzero.util.Notifier;
 import org.bukkit.Bukkit;
 import org.bukkit.Sound;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitTask;
+import net.groundzero.service.GameService;
 
 import java.util.UUID;
 
@@ -14,7 +14,7 @@ import java.util.UUID;
  * Player lifecycle handler.
  * Uses Core.playerStates for all state management.
  */
-public final class PlayerService implements Resettable {
+public final class PlayerService implements GameService {
 
     public PlayerService() {}
 

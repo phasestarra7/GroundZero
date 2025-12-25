@@ -1,7 +1,6 @@
 package net.groundzero.service.combat;
 
 import net.groundzero.app.Core;
-import net.groundzero.service.Resettable;
 import net.groundzero.service.model.DeathCause;
 import net.groundzero.service.tick.TickBus;
 import org.bukkit.Bukkit;
@@ -9,6 +8,7 @@ import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
+import net.groundzero.service.GameService;
 import org.bukkit.Location;
 
 import java.util.Iterator;
@@ -25,7 +25,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * 3. UI feedback via WITHER effect (amplifier 10 to distinguish from vanilla)
  * 4. Duration expires or overridden by stronger poison
  */
-public final class PoisonService implements TickBus.Tickable, Resettable {
+public final class PoisonService implements TickBus.Tickable, GameService {
 
     // WITHER amplifier to distinguish our poison from vanilla
     private static final int CUSTOM_POISON_AMPLIFIER = 9;
@@ -60,20 +60,21 @@ public final class PoisonService implements TickBus.Tickable, Resettable {
         Core.tickBus.register(this);
     }
 
+    @Override
     public void stop() {
         if (!running) return;
-        reset();
-    }
-
-    @Override
-    public void reset() {
         running = false;
         Core.tickBus.unregister(this);
 
-        // Remove all poison effects
+        // Remove poison effects from players
         for (UUID id : activePoisoned.keySet()) {
             removePoisonEffect(id);
         }
+    }
+
+
+    @Override
+    public void reset() {
         activePoisoned.clear();
     }
 

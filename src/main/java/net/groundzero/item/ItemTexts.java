@@ -243,7 +243,7 @@ public final class ItemTexts {
         // Magazine-based weapons
         if (type == ItemType.ASSAULT || type == ItemType.AUTO ||
                 type == ItemType.SNIPER || type == ItemType.RPG) {
-            return "§fBuy 1 magazine with §a" + amount + "§f ammo";
+            return "§fBuy §a1 §fmagazine with §a" + amount + "§f ammo";
         }
 
         // All other items

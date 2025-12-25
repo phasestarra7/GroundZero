@@ -3,7 +3,6 @@ package net.groundzero.service.shop;
 import net.groundzero.app.Core;
 import net.groundzero.item.ItemTexts;
 import net.groundzero.item.ItemType;
-import net.groundzero.service.Resettable;
 import net.groundzero.ui.options.ShopCategory;
 import net.groundzero.ui.options.ShopItem;
 import net.groundzero.util.Notifier;
@@ -11,6 +10,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.Sound;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
+import net.groundzero.service.GameService;
 
 import java.util.UUID;
 
@@ -22,7 +22,7 @@ import java.util.UUID;
  * 2. Check if category slot (ignore) or item slot (process)
  * 3. processPurchase() handles plasma check, deduction, item giving, income add
  */
-public class ShopService implements Resettable {
+public class ShopService implements GameService {
 
     public ShopService() {}
 

@@ -1,11 +1,11 @@
 package net.groundzero.service.combat;
 
 import net.groundzero.app.Core;
-import net.groundzero.service.Resettable;
 import net.groundzero.service.player.PlayerGameState;
 import net.groundzero.service.tick.TickBus;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
+import net.groundzero.service.GameService;
 
 import java.util.UUID;
 
@@ -21,7 +21,7 @@ import java.util.UUID;
  *
  * Note: If player dies and logs out, timer keeps running (they may accumulate penalties).
  */
-public final class CombatIdleService implements TickBus.Tickable, Resettable {
+public final class CombatIdleService implements TickBus.Tickable, GameService {
 
     private boolean running = false;
 
@@ -35,15 +35,17 @@ public final class CombatIdleService implements TickBus.Tickable, Resettable {
         Core.tickBus.register(this);
     }
 
+    @Override
     public void stop() {
         if (!running) return;
-        reset();
+        running = false;
+        Core.tickBus.unregister(this);
     }
+
 
     @Override
     public void reset() {
-        running = false;
-        Core.tickBus.unregister(this);
+        // State managed by PlayerGameStateService
     }
 
     /* ===================== Combat Event Hook ===================== */

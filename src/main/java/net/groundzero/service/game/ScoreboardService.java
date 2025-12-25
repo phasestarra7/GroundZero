@@ -1,7 +1,7 @@
 package net.groundzero.service.game;
 
 import net.groundzero.app.Core;
-import net.groundzero.game.GameSession;
+import net.groundzero.service.GameService;
 import net.groundzero.service.tick.TickBus;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -17,64 +17,61 @@ import java.util.UUID;
  * - Subscribes to TickBus to refresh visuals.
  * - Does NOT mutate time/plasma/income/score, nor end the game.
  */
-public class ScoreboardService implements TickBus.Tickable {
+public class ScoreboardService implements TickBus.Tickable, GameService {
 
     private final Map<UUID, Scoreboard> boards = new HashMap<>();
     private final Map<UUID, Map<String, Team>> boardTeams = new HashMap<>();
 
-    // keep as final and set to 1 now; changeable later
     private static final int UI_UPDATE_PERIOD_TICKS = 1;
     private int lastUiUpdateTick = 0;
 
-    private GameSession session;
-
     private boolean running = false;
 
-    public void start(GameSession session) {
+    @Override
+    public void start() {
         if (running) return;
         running = true;
-        this.session = session;
         this.lastUiUpdateTick = 0;
-        showGameBoard(session);
+        showGameBoard();
         Core.tickBus.register(this);
     }
 
+    @Override
     public void stop() {
         if (!running) return;
-        reset();
-    }
-
-    public void reset() {
         running = false;
         Core.tickBus.unregister(this);
-        this.session = null;
         clearAllBoardsAndRestoreMain();
     }
 
-    // on tick impl
+    @Override
+    public void reset() {
+        boards.clear();
+        boardTeams.clear();
+        lastUiUpdateTick = 0;
+    }
+
     @Override
     public void onTick(int currentTick) {
-        if (session == null) return;
         if (!Core.session.state().isIngame()) return;
 
         if (currentTick - lastUiUpdateTick < UI_UPDATE_PERIOD_TICKS) return;
         lastUiUpdateTick = currentTick;
 
-        int ticksLeft = session.remainingTicks();
+        int ticksLeft = Core.session.remainingTicks();
 
-        for (UUID id : session.getParticipantsView()) {
-            refreshFromSession(session, id, ticksLeft);
+        for (UUID id : Core.session.getParticipantsView()) {
+            refreshFromSession(id, ticksLeft);
         }
     }
 
-    public void showGameBoard(GameSession session) {
-        for (UUID id : session.getParticipantsView()) {
+    public void showGameBoard() {
+        for (UUID id : Core.session.getParticipantsView()) {
             ensureBoard(Bukkit.getPlayer(id));
         }
     }
 
     public void clearAllBoardsAndRestoreMain() {
-
         ScoreboardManager mgr = Bukkit.getScoreboardManager();
         Scoreboard main = (mgr != null ? mgr.getMainScoreboard() : null);
 
@@ -97,9 +94,9 @@ public class ScoreboardService implements TickBus.Tickable {
         boardTeams.clear();
     }
 
-    /* ---------- render helpers (layout unchanged) ---------- */
+    /* ---------- render helpers ---------- */
 
-    public void refreshFromSession(GameSession session, UUID id, int ticksLeft) {
+    public void refreshFromSession(UUID id, int ticksLeft) {
         Player p = Bukkit.getPlayer(id);
         if (p == null) return;
 
@@ -114,13 +111,13 @@ public class ScoreboardService implements TickBus.Tickable {
         String coords = String.format("x: %.2f y: %.2f z: %.2f", loc.getX(), loc.getY(), loc.getZ());
         String timeLeft = formatTimeFromTicks(ticksLeft);
 
-        double plasmaVal = session.getPlasmaMap().getOrDefault(id, Core.gameConfig.basePlasma);
+        double plasmaVal = Core.session.getPlasmaMap().getOrDefault(id, Core.gameConfig.basePlasma);
         String plasmaText = String.format("%.2f", plasmaVal);
 
-        double incomeVal = session.getIncomeMap().getOrDefault(id, Core.gameConfig.baseIncomePerSecond);
+        double incomeVal = Core.session.getIncomeMap().getOrDefault(id, Core.gameConfig.baseIncomePerSecond);
         String incomeText = "+" + String.format("%.2f", incomeVal) + "/s";
 
-        double scoreVal = session.getScoreMap().getOrDefault(id, Core.gameConfig.baseScore);
+        double scoreVal = Core.session.getScoreMap().getOrDefault(id, Core.gameConfig.baseScore);
         String scoreText = String.format("%.2f", scoreVal);
 
         teams.get("row_player").setSuffix("§a" + name);

@@ -3,7 +3,7 @@ package net.groundzero.service.combat;
 import net.groundzero.app.Core;
 import net.groundzero.service.model.LastHit;
 import net.groundzero.service.model.DeathCause;
-import net.groundzero.service.combat.ProjectileService.Payload;
+import net.groundzero.service.GameService;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
@@ -28,7 +28,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * - Player-caused damage (DeathCause.isPlayerCaused): Overwrite entire LastHit
  * - Environment/Mob damage (DeathCause.isEnvironment): Keep attacker if within combat window
  */
-public final class DamageService {
+public final class DamageService implements GameService {
 
     /** Metadata key to mark "this tick is our custom damage". */
     public static final String META_PROCESSING_DAMAGE = "gz_applying_damage_now";
@@ -36,6 +36,7 @@ public final class DamageService {
     /** victimId -> last hit snapshot */
     private final Map<UUID, LastHit> lastHitMap = new ConcurrentHashMap<>();
 
+    @Override
     public void reset() {
         lastHitMap.clear();
     }

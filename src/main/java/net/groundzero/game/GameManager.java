@@ -1,7 +1,7 @@
-// game/GameManager.java
 package net.groundzero.game;
 
 import net.groundzero.app.Core;
+import net.groundzero.service.GameService;
 import net.groundzero.ui.options.*;
 import net.groundzero.util.Notifier;
 import org.bukkit.*;
@@ -19,22 +19,15 @@ import java.util.UUID;
  * Lifecycle:
  *   IDLE -> (start) -> PREGAME (voting) -> RUNNING -> ENDED -> IDLE
  *
- * Phase Flow (clearly visible):
- *   1. startFromIdle()
- *   2. → beginVotingFlow()
- *   3.   → voteMapSize()
- *   4.   → voteIncome()
- *   5.   → voteGameMode()
- *   6.   → finalCountdown()
- *   7. → startActualGame()
- *   8.   → (20 min gameplay)
- *   9. → endMatch()
- *  10. → (cleanup) → back to IDLE
+ * Cancel methods:
+ *   - cancelPregame(): Pregame only. TickBus not running yet.
+ *   - endMatch(): Normal end. Shows results, then cleanup.
+ *   - forceStop(): Force stop from any state.
  *
- * Cancel/Stop methods:
- *   - cancelPregame(): Cancel during pregame (voting/countdown). Resets pregame-only data.
- *   - endMatch(): Normal end after 20 min. Shows results, then resets all after delay.
- *   - forceStop(): Force stop from any state. Used by /gz test or plugin disable.
+ * Service lifecycle:
+ *   - start(): TickBus register + activate
+ *   - stop(): TickBus unregister + cleanup external effects (entities, player effects)
+ *   - reset(): Clear internal data (Maps, flags)
  */
 public class GameManager {
 
@@ -69,8 +62,8 @@ public class GameManager {
     }
 
     /**
-     * Cancel during pregame. Called by player quit or /gz cancel.
-     * Only works during pregame states.
+     * Cancel during pregame. TickBus is NOT running.
+     * Only schedulers, GUI, vote data need cleanup.
      */
     public void cancelPregame(Player requester) {
         GameState st = session.state();
@@ -102,27 +95,29 @@ public class GameManager {
     }
 
     /**
-     * Normal match end. Called when 20 min timer expires.
-     * Shows results, then cleans up after delay.
+     * Normal match end. Called when timer expires.
+     * Flow: stop services -> show results -> delay -> reset -> IDLE
      */
     public void endMatch() {
         GameState st = session.state();
 
         if (!st.isIngame()) {
-            // Shouldn't happen, but fallback
             forceStop(null);
             return;
         }
 
         session.setState(GameState.ENDED);
 
-        // Stop tick-based services immediately (no more ticks during ENDED)
-        stopIngameServices();
+        // 1) Stop tick-based services (unregister + cleanup external effects)
+        for (GameService svc : Core.gameServices) {
+            svc.stop();
+        }
+        Core.tickBus.stop();
 
-        // Cancel any pending tasks (respawn timers, etc.)
+        // 2) Cancel scheduled tasks
         Core.schedulers.cancelAll();
 
-        // Broadcast game over
+        // 3) Broadcast game over
         Core.notifier.broadcast(
                 Bukkit.getOnlinePlayers(),
                 Sound.ENTITY_ENDER_DRAGON_GROWL,
@@ -131,7 +126,7 @@ public class GameManager {
                 "Game Over"
         );
 
-        // Put all participants into spectator mode
+        // 4) Put all participants into spectator mode
         for (UUID id : session.getParticipantsView()) {
             Player p = Bukkit.getPlayer(id);
             if (p == null || !p.isOnline()) continue;
@@ -142,29 +137,43 @@ public class GameManager {
             p.setGameMode(GameMode.SPECTATOR);
         }
 
-        // Print scores after 1 second
+        // 5) Print scores after 1 second
         Core.schedulers.runLater(this::printMatchResults, 20L);
 
-        // Full cleanup after delay
+        // 6) Full cleanup after delay
         Core.schedulers.runLater(this::doFullCleanup, Core.gameConfig.matchEndDelayTicks);
     }
 
     /**
-     * Force stop from any state. Used by /gz test or plugin disable.
-     * Immediately cleans everything.
+     * Force stop from any state. Immediately cleans everything.
      */
     public void forceStop(Player sender) {
-        // Stop all tick services
-        stopIngameServices();
+        GameState st = session.state();
+
+        // If ingame, stop services first
+        if (st.isIngame() || st == GameState.ENDED) {
+            for (GameService svc : Core.gameServices) {
+                svc.stop();
+            }
+            Core.tickBus.stop();
+        }
 
         // Cancel all scheduled tasks
         Core.schedulers.cancelAll();
 
+        // Close GUIs
+        Core.guiService.closeAllGZViews();
+
+        // Reset all services (clear internal data)
+        for (GameService svc : Core.gameServices) {
+            svc.reset();
+        }
+
         // Restore world
         restoreEnvironmentToDefault();
 
-        // Reset all services
-        resetAllServices();
+        // Session cleanup
+        session.clearRuntimeAndOptions();
 
         // Back to IDLE
         session.setState(GameState.IDLE);
@@ -180,63 +189,32 @@ public class GameManager {
        ========================================================= */
 
     /**
-     * Cancel pregame only. Resets pregame-specific data.
+     * Cancel pregame only. TickBus not running yet.
      */
     private void doCancelPregame() {
-        // Cancel vote timers, countdowns
+        // 1) Cancel schedulers (countdown timers, vote timers)
         Core.schedulers.cancelAll();
 
-        // Close vote GUIs
+        // 2) Close vote GUIs
         Core.guiService.closeAllGZViews();
 
-        // Reset pregame services
+        // 3) Reset pregame services only
         Core.voteService.reset();
-        Core.session.clearRuntimeAndOptions();
+        Core.guiService.reset();
 
-        // Back to IDLE
+        // 4) Clear session options
+        session.clearRuntimeAndOptions();
+
+        // 5) Back to IDLE
         session.setState(GameState.IDLE);
         session.resetToAllSpectators();
-    }
-
-    /**
-     * Stop tick-based services that run during ingame.
-     */
-    private void stopIngameServices() {
-        if (Core.gameRuntimeService != null) Core.gameRuntimeService.stop();
-        if (Core.scoreboardService != null) Core.scoreboardService.stop();
-        if (Core.combatIdleService != null) Core.combatIdleService.stop();
-        if (Core.tntService != null) Core.tntService.stop();
-        if (Core.poisonService != null) Core.poisonService.stop();
-        if (Core.actionBarService != null) Core.actionBarService.stop();
-        if (Core.tickBus != null) Core.tickBus.stop();
-    }
-
-    /**
-     * Reset all services that hold session data.
-     */
-    private void resetAllServices() {
-        // Pregame services
-        Core.voteService.reset();
-        Core.guiService.closeAllGZViews();
-
-        // Ingame services
-        Core.damageService.reset();
-        Core.combatIdleService.reset();
-        Core.playerService.reset();
-        Core.scoreboardService.reset();
-
-        // Player states (central)
-        Core.playerStates.reset();
-
-        // Session data
-        Core.session.clearRuntimeAndOptions();
     }
 
     /**
      * Full cleanup after ENDED state. Returns to IDLE.
      */
     private void doFullCleanup() {
-        // Reset all players to survival with full health
+        // 1) Reset all players to survival with full health
         for (Player p : Bukkit.getOnlinePlayers()) {
             if (p == null || !p.isOnline()) continue;
             p.setFoodLevel(20);
@@ -246,13 +224,18 @@ public class GameManager {
             p.setGameMode(GameMode.SURVIVAL);
         }
 
-        // Restore world settings
+        // 2) Restore world settings
         restoreEnvironmentToDefault();
 
-        // Reset all services
-        resetAllServices();
+        // 3) Reset all services (clear internal data)
+        for (GameService svc : Core.gameServices) {
+            svc.reset();
+        }
 
-        // Back to IDLE
+        // 4) Session cleanup
+        session.clearRuntimeAndOptions();
+
+        // 5) Back to IDLE
         session.setState(GameState.IDLE);
         session.resetToAllSpectators();
     }
@@ -261,7 +244,6 @@ public class GameManager {
      * Print match results (called during ENDED).
      */
     private void printMatchResults() {
-        // TODO: Sort by score, format nicely
         for (UUID id : session.getParticipantsView()) {
             Player p = Bukkit.getPlayer(id);
             if (p == null) continue;
@@ -276,14 +258,9 @@ public class GameManager {
 
     /* =========================================================
        PHASE FLOW: Start → Voting → Game Start
-       This section shows the complete pregame flow clearly
        ========================================================= */
 
-    /**
-     * PHASE 1: Initialize game from IDLE state
-     */
     private void startFromIdle(Player sender) {
-        // 1) Collect participants from current spectators
         session.snapshotParticipantsFromSpectators();
 
         if (session.getParticipantsView().isEmpty()) {
@@ -292,14 +269,12 @@ public class GameManager {
             return;
         }
 
-        // 2) Capture world and center from participants
         if (!session.captureWorldAndCenterFromParticipants()) {
             Core.notifier.message(sender, true, "Players must be in the same world");
             session.resetToAllSpectators();
             return;
         }
 
-        // 3) Notify start
         Core.notifier.broadcast(
                 Bukkit.getOnlinePlayers(),
                 Sound.ENTITY_EXPERIENCE_ORB_PICKUP,
@@ -309,7 +284,6 @@ public class GameManager {
                 "Participants: " + session.namesOfParticipants()
         );
 
-        // 4) Begin voting flow
         session.setState(GameState.COUNTDOWN_BEFORE_VOTING);
         Core.voteService.startCountdownInternal(
                 Core.gameConfig.preVoteCountdownTicks / 20,
@@ -317,38 +291,22 @@ public class GameManager {
         );
     }
 
-    /**
-     * PHASE 2: Start voting sequence
-     * Flow: MapSize → Income → GameMode → FinalCountdown → Game
-     */
     private void beginVotingFlow() {
         voteMapSize();
     }
 
-    /**
-     * PHASE 3: Vote for map size
-     */
     private void voteMapSize() {
         Core.voteService.startMapSizeVote(this::voteIncome);
     }
 
-    /**
-     * PHASE 4: Vote for income multiplier
-     */
     private void voteIncome() {
         Core.voteService.startIncomeVote(this::voteGameMode);
     }
 
-    /**
-     * PHASE 5: Vote for game mode
-     */
     private void voteGameMode() {
         Core.voteService.startGameModeVote(this::finalCountdown);
     }
 
-    /**
-     * PHASE 6: Final countdown before game starts
-     */
     private void finalCountdown() {
         Core.guiService.closeAllGZViews();
         session.setState(GameState.COUNTDOWN_BEFORE_START);
@@ -358,24 +316,15 @@ public class GameManager {
         );
     }
 
-    /**
-     * PHASE 7: Voting complete, apply options and start game
-     */
     private void onVotingComplete() {
         GameState st = session.state();
         if (!st.isPregame()) return;
 
-        // Apply voted options
         applyVoteOptionToParticipants();
         applyWorldSettings();
-
-        // Start actual game
         startActualGame();
     }
 
-    /**
-     * PHASE 8: Start the actual game (RUNNING state)
-     */
     private void startActualGame() {
         GameState st = session.state();
         if (!st.isPregame()) {
@@ -398,13 +347,10 @@ public class GameManager {
         // Set match time
         session.setRemainingTicks(Core.gameConfig.matchDurationTicks);
 
-        // Start tick-based services
-        Core.gameRuntimeService.start(session);
-        Core.scoreboardService.start(session);
-        Core.combatIdleService.start();
-        Core.tntService.start();
-        Core.poisonService.start();
-        Core.actionBarService.start();
+        // Start all services
+        for (GameService svc : Core.gameServices) {
+            svc.start();
+        }
         Core.tickBus.start();
 
         // Setup participants

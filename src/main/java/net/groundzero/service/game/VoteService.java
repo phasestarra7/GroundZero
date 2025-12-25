@@ -14,6 +14,7 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import net.groundzero.service.GameService;
 
 import java.util.*;
 
@@ -23,7 +24,7 @@ import java.util.*;
  * - updates GUI inventories (lore, retain-only, highlight)
  * - callbacks to GameManager for phase transitions
  */
-public final class VoteService {
+public final class VoteService implements GameService {
 
     private final Map<MapSizeOption, Integer> mapVotes   = new EnumMap<>(MapSizeOption.class);
     private final Map<IncomeOption, Integer>  incomeVotes = new EnumMap<>(IncomeOption.class);
@@ -44,6 +45,7 @@ public final class VoteService {
 
     public VoteService() {}
 
+    @Override
     public void reset() {
         acceptingVotes = false;
         onMapSizeComplete = null;

@@ -11,6 +11,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import net.groundzero.service.GameService;
 
 import java.util.Arrays;
 import java.util.List;
@@ -22,7 +23,7 @@ import static org.bukkit.Bukkit.createInventory;
  * Voting-specific logic is handled in VoteService.
  * Shop purchase logic is handled in ShopService.
  */
-public final class GuiService {
+public final class GuiService implements GameService {
 
     private Inventory invMapSize;
     private Inventory invIncome;
@@ -30,6 +31,15 @@ public final class GuiService {
     private Inventory invShop;
 
     public GuiService() {}
+
+    @Override
+    public void reset() {
+        closeAllGZViews();
+        invMapSize = null;
+        invIncome = null;
+        invGameMode = null;
+        invShop = null;
+    }
 
     /* ----------------------- BUILDERS ----------------------- */
 

@@ -1,10 +1,9 @@
 package net.groundzero.service.player;
 
-import net.groundzero.service.Resettable;
-
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import net.groundzero.service.GameService;
 
 /**
  * Central service for managing all player game states.
@@ -19,11 +18,22 @@ import java.util.concurrent.ConcurrentHashMap;
  *   state.markDead();
  *   state.resetIdleToGrace(-200);
  */
-public final class PlayerGameStateService implements Resettable {
+public final class PlayerGameStateService implements GameService {
 
     private final Map<UUID, PlayerGameState> states = new ConcurrentHashMap<>();
 
     public PlayerGameStateService() {}
+
+    /**
+     * Reset all player states (called on session end).
+     */
+    @Override
+    public void reset() {
+        for (PlayerGameState state : states.values()) {
+            state.resetAll();
+        }
+        states.clear();
+    }
 
     /**
      * Get existing state or create new one for player.
@@ -64,16 +74,5 @@ public final class PlayerGameStateService implements Resettable {
         if (state != null) {
             state.resetAll();
         }
-    }
-
-    /**
-     * Reset all player states (called on session end).
-     */
-    @Override
-    public void reset() {
-        for (PlayerGameState state : states.values()) {
-            state.resetAll();
-        }
-        states.clear();
     }
 }
