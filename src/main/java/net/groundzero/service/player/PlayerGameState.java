@@ -16,7 +16,7 @@ import java.util.Map;
  * - Weapon state (will be added when items are implemented)
  * - Support state (will be added when support items are implemented)
  */
-public class PlayerGameState {
+public final class PlayerGameState {
 
     /* ===== Combat & Death ===== */
     private boolean isDead = false;
@@ -34,24 +34,32 @@ public class PlayerGameState {
     private final Map<EffectSource, Integer> effectSources = new EnumMap<>(EffectSource.class);
     private boolean jumpBlocked = false;
 
-    /* ===== Assault Rifle Ammo ===== */
+    /* ===== Assault Rifle ===== */
     private int assaultMagazine = 0;
     private int assaultReserve = 0;
+    private int assaultCooldownEndTick = 0;
     private int assaultReloadEndTick = 0;
+    // ADS mode managed in PlayerEffectService
 
-    /* ===== Auto Rifle Ammo ===== */
+    /* ===== Auto Rifle ===== */
     private int autoMagazine = 0;
     private int autoReserve = 0;
+    private int autoCooldownEndTick = 0;
     private int autoReloadEndTick = 0;
+    private boolean autoFireMode = false;
+    private int autoOverdriveStack = 0;
 
-    /* ===== Sniper Rifle Ammo ===== */
+    /* ===== Sniper Rifle ===== */
     private int sniperMagazine = 0;
     private int sniperReserve = 0;
+    private int sniperCooldownEndTick = 0;
     private int sniperReloadEndTick = 0;
+    // Scope mode managed in PlayerEffectService
 
-    /* ===== RPG Ammo ===== */
+    /* ===== RPG ===== */
     private int rpgMagazine = 0;
     private int rpgReserve = 0;
+    private int rpgCooldownEndTick = 0;
     private int rpgReloadEndTick = 0;
 
 

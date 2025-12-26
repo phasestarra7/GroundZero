@@ -14,7 +14,7 @@ import java.util.*;
  * - original border (to restore)
  * - current game state
  */
-public class GameSession {
+public final class GameSession {
 
     // ---- state ----
     private GameState state = GameState.IDLE;

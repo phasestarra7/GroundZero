@@ -17,7 +17,7 @@ import java.util.UUID;
  * - Subscribes to TickBus to refresh visuals.
  * - Does NOT mutate time/plasma/income/score, nor end the game.
  */
-public class ScoreboardService implements TickBus.Tickable, GameService {
+public final class ScoreboardService implements TickBus.Tickable, GameService {
 
     private final Map<UUID, Scoreboard> boards = new HashMap<>();
     private final Map<UUID, Map<String, Team>> boardTeams = new HashMap<>();

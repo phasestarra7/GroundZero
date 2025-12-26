@@ -24,7 +24,7 @@ import org.bukkit.inventory.ItemStack;
  * 2. Protected slot not working in shop GUI
  * 3. Vanilla action conflicts
  */
-public class InteractionDebugListener extends BaseListener implements Listener {
+public final class InteractionDebugListener extends BaseListener implements Listener {
 
     private static final String PREFIX = "§e[DEBUG]§f ";
     private static final boolean ENABLED = true; // Toggle debugging

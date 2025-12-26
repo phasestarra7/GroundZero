@@ -38,7 +38,7 @@ import java.util.UUID;
  * - LEFT_CLICK_AIR: Check DROP flag first (filter fake events)
  * - RIGHT_CLICK_*: Process immediately (accurate)
  */
-public class ItemInteractionListener extends BaseListener implements Listener {
+public final class ItemInteractionListener extends BaseListener implements Listener {
 
     /**
      * Tracks recent DROP events to filter fake LEFT_CLICK_AIR

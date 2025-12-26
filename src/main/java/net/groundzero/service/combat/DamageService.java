@@ -1,8 +1,8 @@
 package net.groundzero.service.combat;
 
 import net.groundzero.app.Core;
-import net.groundzero.service.model.LastHit;
-import net.groundzero.service.model.DeathCause;
+import net.groundzero.service.record.LastHit;
+import net.groundzero.service.record.DeathCause;
 import net.groundzero.service.GameService;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;

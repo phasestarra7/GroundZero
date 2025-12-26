@@ -6,7 +6,7 @@ import net.groundzero.service.combat.PoisonService;
 import net.groundzero.service.combat.ProjectileService;
 import net.groundzero.service.combat.ProjectileService.Payload;
 import net.groundzero.service.combat.TntService;
-import net.groundzero.service.model.DeathCause;
+import net.groundzero.service.record.DeathCause;
 import org.bukkit.Location;
 import org.bukkit.entity.*;
 import org.bukkit.event.EventHandler;

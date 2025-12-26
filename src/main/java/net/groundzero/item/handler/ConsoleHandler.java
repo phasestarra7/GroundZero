@@ -8,7 +8,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 
-public class ConsoleHandler implements ItemHandler {
+public final class ConsoleHandler implements ItemHandler {
 
     @Override
     public boolean onLeftClick(Player player, ItemStack item) {

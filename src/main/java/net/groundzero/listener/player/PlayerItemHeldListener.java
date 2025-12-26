@@ -45,7 +45,7 @@ public final class PlayerItemHeldListener extends BaseListener implements Listen
 
             // Remove Zoom if not holding Sniper
             if (newType != ItemType.SNIPER) {
-                Core.playerEffectService.removeSource(playerId, EffectSource.SNIPER_ZOOM);
+                Core.playerEffectService.removeSource(playerId, EffectSource.SNIPER_SCOPED);
             }
         }, 1L);
     }

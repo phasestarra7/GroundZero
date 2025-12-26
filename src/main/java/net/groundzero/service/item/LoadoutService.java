@@ -22,7 +22,7 @@ import java.util.UUID;
  *
  * All weapons start with 0 ammo - players must purchase ammo from shop.
  */
-public class LoadoutService implements GameService {
+public final class LoadoutService implements GameService {
 
     @Override
     public void reset() {

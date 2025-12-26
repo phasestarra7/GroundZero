@@ -268,15 +268,15 @@ public final class ItemTexts {
             // Weapons - Non-consumable (ammo-based)
             case ASSAULT -> List.of(
                     "§e[L]§f Fire",
-                    "§e[R]§f ADS Mode"
+                    "§e[R]§f ADS Mode (Toggle)"
             );
             case AUTO -> List.of(
-                    "§e[L]§f Fire",
-                    "§e[R]§f Overdrive"
+                    "§e[L]§f Auto Fire (Toggle)",
+                    "§e[R]§f Overdrive (Toggle)"
             );
             case SNIPER -> List.of(
                     "§e[L]§f Fire",
-                    "§e[R]§f Scope"
+                    "§e[R]§f Scope (Toggle)"
             );
             case RPG -> List.of(
                     "§e[L]§f Fire",

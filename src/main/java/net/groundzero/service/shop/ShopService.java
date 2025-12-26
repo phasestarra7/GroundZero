@@ -27,7 +27,7 @@ import java.util.UUID;
  * - If magazine AND reserve are both 0: add to magazine (immediate use)
  * - Otherwise: add to reserve (requires reload)
  */
-public class ShopService implements GameService {
+public final class ShopService implements GameService {
 
     public ShopService() {}
 

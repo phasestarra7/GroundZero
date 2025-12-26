@@ -4,7 +4,7 @@ package net.groundzero.game;
  * Central place for tunable game parameters.
  * All timing values are in ticks (20 ticks = 1 second).
  */
-public class GameConfig {
+public final class GameConfig {
 
     /* ===== match timing ===== */
     // match length: 20 ticks * 60 sec * 20 min = 20 minutes
@@ -149,7 +149,8 @@ public class GameConfig {
     public int assaultMagazineSize = 30;
     public int assaultReloadTicks = 60;          // 3 seconds
     public double assaultRecoilPitch = 1.5;      // upward kick
-    public double assaultRecoilYaw = 0.8;        // left/right range
+    public double assaultRecoilYaw = 1;        // left/right range
+    public int assaultCooldownTicks = 0;      // assault has no cooldown
     public int assaultRecoilRecoveryTicks = 4;   // ticks to recover
 
     /* ===== Auto Rifle ===== */
@@ -160,17 +161,19 @@ public class GameConfig {
     public int autoReloadTicks = 80;             // 4 seconds
     public double autoRecoilPitch = 0.8;
     public double autoRecoilYaw = 1.2;
-    public int autoRecoilRecoveryTicks = 3;
+    public int autoCooldownTicks = 2; // when toggled, shoot 10 shots per second
+    public int autoRecoilRecoveryTicks = 1;
 
     /* ===== Sniper Rifle ===== */
     public double sniperDamage = 20.0;
-    public double sniperProjectileSpeed = 8.0;
-    public double sniperSpread = 0.0;            // no spread when scoped
+    public double sniperProjectileSpeed = 15.0;
+    public double sniperSpread = 0.00;            // no spread when scoped
     public int sniperMagazineSize = 5;
     public int sniperReloadTicks = 100;          // 5 seconds
     public double sniperRecoilPitch = 4.0;
-    public double sniperRecoilYaw = 0.3;
-    public int sniperRecoilRecoveryTicks = 8;
+    public double sniperRecoilYaw = 1.0;
+    public int sniperCooldownTicks = 50;
+    public int sniperRecoilRecoveryTicks = 12;
 
     /* ===== RPG ===== */
     public double rpgDamage = 25.0;              // direct hit (explosion separate)
@@ -180,6 +183,7 @@ public class GameConfig {
     public int rpgReloadTicks = 120;             // 6 seconds
     public double rpgRecoilPitch = 3.0;
     public double rpgRecoilYaw = 0.5;
+    public int rpgCooldownTicks = 0;           // rpg has no cooldown
     public int rpgRecoilRecoveryTicks = 6;
 
     public GameConfig() {}

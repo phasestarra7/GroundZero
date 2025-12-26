@@ -11,6 +11,7 @@ import net.groundzero.service.game.GameRuntimeService;
 import net.groundzero.service.game.ScoreboardService;
 import net.groundzero.service.game.VoteService;
 import net.groundzero.service.item.LoadoutService;
+import net.groundzero.service.model.ProjectileModelService;
 import net.groundzero.service.player.PlayerGameStateService;
 import net.groundzero.service.player.PlayerService;
 import net.groundzero.service.shop.ShopService;
@@ -54,6 +55,7 @@ public final class Core {
     public static PlayerEffectService playerEffectService;
     public static ReloadService reloadService;
     public static RecoilService recoilService;
+    public static ProjectileModelService projectileModelService;
 
     public static ItemRegistry itemRegistry;
 
@@ -95,6 +97,7 @@ public final class Core {
         playerEffectService = new PlayerEffectService();
         reloadService = new ReloadService();
         recoilService = new RecoilService();
+        projectileModelService = new ProjectileModelService();
 
         itemRegistry = new ItemRegistry();
         itemRegistry.init();
@@ -117,5 +120,6 @@ public final class Core {
         gameServices.add(actionBarService);
         gameServices.add(playerEffectService);
         gameServices.add(reloadService);
+        gameServices.add(projectileModelService);
     }
 }

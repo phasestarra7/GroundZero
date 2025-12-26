@@ -60,6 +60,20 @@ public final class Notifier {
         }
     }
 
+    public void messageOnly(Player p, boolean isError, String... lines) {
+        if (p == null || lines == null || lines.length == 0) return;
+
+        final float pitch = isError ? PitchLevel.ERR.v : PitchLevel.OK.v;
+        final String pfx  = isError ? PFX_MSG_ERR : PFX_MSG_OK;
+
+        // No sound feedback
+
+        // text lines
+        for (String s : lines) {
+            p.sendMessage(c(pfx + (s == null ? "" : s)));
+        }
+    }
+
     public void message(CommandSender sender, boolean isError, String... lines) {
         if (sender == null || lines == null || lines.length == 0) return;
 

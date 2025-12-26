@@ -25,7 +25,7 @@ import java.util.Map;
  * - GuiService: ItemTexts.applyShopText() or applyCategoryText()
  * - ShopService: ItemTexts.applyInventoryText() when giving purchased item
  */
-public class ItemRegistry {
+public final class ItemRegistry {
 
     public static final NamespacedKey KEY_ITEM_ID = new NamespacedKey(Core.plugin, "gz_item_id");
 

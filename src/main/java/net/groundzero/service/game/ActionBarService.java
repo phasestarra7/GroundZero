@@ -3,6 +3,8 @@ package net.groundzero.service.game;
 import net.groundzero.app.Core;
 import net.groundzero.item.ItemTexts;
 import net.groundzero.item.ItemType;
+import net.groundzero.service.effect.EffectSource;
+import net.groundzero.service.player.PlayerGameState;
 import net.groundzero.service.tick.TickBus;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
@@ -158,7 +160,7 @@ public final class ActionBarService implements TickBus.Tickable, GameService {
      * Generate ActionBar message using ItemTexts.
      */
     private String generateDefaultMessage(Player player, ItemType type, int currentTick) {
-        var state = Core.playerStates.getOrCreate(player.getUniqueId());
+        PlayerGameState state = Core.playerStates.getOrCreate(player.getUniqueId());
 
         int magazine = 0;
         int reserve = 0;
@@ -192,10 +194,40 @@ public final class ActionBarService implements TickBus.Tickable, GameService {
             }
         }
 
-        return ItemTexts.getActionBar(type, magazine, reserve, isReloading);
+        String base = ItemTexts.getActionBar(type, magazine, reserve, isReloading);
+        return applyToggleStatesForActionBar(base, type, player.getUniqueId());
+    }
+
+    private String applyToggleStatesForActionBar(String base, ItemType type, UUID playerId) {
+        // Strip literal "(Toggle)" everywhere for actionbar readability
+        String out = base.replace(" (Toggle)", "");
+
+        // Only add ON/OFF tags for the toggles you actually have
+        return switch (type) {
+            case ASSAULT -> {
+                boolean isADS = Core.playerEffectService.hasSource(playerId, EffectSource.ASSAULT_ADS);
+                yield out.replace("ADS Mode", "ADS Mode" + toggleDot(isADS));
+            }
+//            case AUTO -> {
+//                boolean isAutoFire = Core.playerEffectService.hasSource(playerId, EffectSource.AUTO_AUTOFIRE);
+//                boolean isOverdrive = Core.playerEffectService.hasSource(playerId, EffectSource.AUTO_OVERDRIVE);
+//                String t = out.replace("Auto Fire", "Auto " + toggleTag(isAutoFire));
+//                t = t.replace("Overdrive", "Overdrive " + toggleTag(isOverdrive));
+//                yield t;
+//            }
+//            case SNIPER -> {
+//                boolean isScope = Core.playerEffectService.hasSource(playerId, EffectSource.SNIPER_SCOPE);
+//                yield out.replace("Scope", "Scope " + toggleTag(isScope));
+//            }
+            default -> out;
+        };
     }
 
     /* ===================== Utility ===================== */
+
+    private static String toggleDot(boolean on) {
+        return on ? " §a●§f" : " §7●§f";
+    }
 
     /**
      * Clear player's cached state (called on quit/death).

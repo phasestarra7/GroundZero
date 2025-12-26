@@ -4,9 +4,11 @@ import net.groundzero.app.Core;
 import net.groundzero.item.WeaponType;
 import net.groundzero.service.combat.ProjectileService;
 import net.groundzero.service.effect.EffectSource;
+import net.groundzero.service.model.ModelType;
 import net.groundzero.util.Notifier;
 import org.bukkit.Location;
 import org.bukkit.Sound;
+import org.bukkit.entity.Arrow;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.util.Vector;
@@ -17,7 +19,7 @@ import java.util.UUID;
  * Assault Rifle handler.
  *
  * Actions:
- * - Left Click: Fire (or start reload if magazine empty)
+ * - Left Click: Fire
  * - Right Click: Toggle ADS mode
  *
  * ADS Mode:
@@ -25,7 +27,7 @@ import java.util.UUID;
  * - Zero spread
  * - Reduced recoil (50%)
  */
-public class AssaultHandler implements ItemHandler {
+public final class AssaultHandler implements ItemHandler {
 
     private static final WeaponType WEAPON = WeaponType.ASSAULT;
 
@@ -35,6 +37,7 @@ public class AssaultHandler implements ItemHandler {
 
         // 1. Check if currently reloading
         if (Core.reloadService.isReloading(playerId, WEAPON)) {
+            Core.notifier.messageOnly(player, true, "Reloading...");
             Core.notifier.sound(player, Sound.BLOCK_DISPENSER_FAIL, Notifier.PitchLevel.LOW);
             return true;
         }
@@ -49,6 +52,7 @@ public class AssaultHandler implements ItemHandler {
             if (reserve > 0) {
                 Core.reloadService.startReload(player, WEAPON);
             } else {
+                Core.notifier.messageOnly(player, true, "Out of ammo!");
                 Core.notifier.sound(player, Sound.BLOCK_DISPENSER_FAIL, Notifier.PitchLevel.LOW);
             }
             return true;
@@ -56,6 +60,7 @@ public class AssaultHandler implements ItemHandler {
 
         // 3. Consume ammo
         if (!Core.reloadService.consumeMagazine(playerId, WEAPON)) {
+            Core.notifier.messageOnly(player, true, "Out of ammo!");
             Core.notifier.sound(player, Sound.BLOCK_DISPENSER_FAIL, Notifier.PitchLevel.LOW);
             return true;
         }
@@ -111,6 +116,7 @@ public class AssaultHandler implements ItemHandler {
             Core.notifier.sound(player, Sound.ITEM_SPYGLASS_USE, Notifier.PitchLevel.MID);
         }
 
+        Core.actionBarService.updateImmediately(player.getUniqueId());
         return true;
     }
 
@@ -150,7 +156,18 @@ public class AssaultHandler implements ItemHandler {
         // Flags
         opt.flags = 0;
 
-        Core.projectileService.spawnArrow(playerId, eyeLoc, direction, opt);
+        // Spawn arrow
+        Arrow arrow = Core.projectileService.spawnArrow(playerId, eyeLoc, direction, opt);
+
+        // Attach visual model
+        if (arrow != null) {
+            // Make arrow invisible (model will be visible instead)
+            arrow.setVisibleByDefault(false);
+
+            // Attach bullet model
+            Core.projectileModelService.attachModel(arrow, ModelType.ASSAULT_BULLET);
+        }
+
         Core.notifier.sound(player, Sound.ENTITY_GENERIC_EXPLODE, Notifier.PitchLevel.HIGH);
     }
 }

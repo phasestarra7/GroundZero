@@ -1,7 +1,7 @@
 package net.groundzero.service.combat;
 
 import net.groundzero.app.Core;
-import net.groundzero.service.model.DeathCause;
+import net.groundzero.service.record.DeathCause;
 import net.groundzero.service.tick.TickBus;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Entity;

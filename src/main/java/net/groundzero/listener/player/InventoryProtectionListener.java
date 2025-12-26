@@ -32,7 +32,7 @@ import java.util.Set;
  * - Normal mode: 0,1,2,3,8 (4 weapons + console)
  * - Swapped mode: 27,28,29,30,8 (weapons moved, console stays)
  */
-public class InventoryProtectionListener extends BaseListener implements Listener {
+public final class InventoryProtectionListener extends BaseListener implements Listener {
 
     private static final Set<Integer> PROTECTED_SLOTS_NORMAL = Set.of(0, 1, 2, 3, 8);
     private static final Set<Integer> PROTECTED_SLOTS_SWAPPED = Set.of(27, 28, 29, 30, 8);

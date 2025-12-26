@@ -29,7 +29,7 @@ import java.util.UUID;
  *   - stop(): TickBus unregister + cleanup external effects (entities, player effects)
  *   - reset(): Clear internal data (Maps, flags)
  */
-public class GameManager {
+public final class GameManager {
 
     private final GameSession session = new GameSession();
     private static final Random RNG = new Random();

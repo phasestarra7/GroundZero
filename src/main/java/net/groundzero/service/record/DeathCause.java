@@ -1,4 +1,4 @@
-package net.groundzero.service.model;
+package net.groundzero.service.record;
 
 /**
  * Unified death cause for:

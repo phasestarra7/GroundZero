@@ -1,4 +1,4 @@
 package net.groundzero.storage;
 
-public class StatsRepository {
+public final class StatsRepository {
 }
