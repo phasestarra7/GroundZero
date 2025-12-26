@@ -18,6 +18,7 @@ import net.groundzero.service.tick.TickBus;
 import net.groundzero.service.ui.GuiService;
 import net.groundzero.util.Notifier;
 import net.groundzero.util.Schedulers;
+import net.groundzero.service.effect.PlayerEffectService;
 import org.bukkit.plugin.Plugin;
 
 import java.util.ArrayList;
@@ -50,6 +51,9 @@ public final class Core {
     public static TntService tntService;
     public static PoisonService poisonService;
     public static ActionBarService actionBarService;
+    public static PlayerEffectService playerEffectService;
+    public static ReloadService reloadService;
+    public static RecoilService recoilService;
 
     public static ItemRegistry itemRegistry;
 
@@ -88,6 +92,9 @@ public final class Core {
         tntService = new TntService();
         poisonService = new PoisonService();
         actionBarService = new ActionBarService();
+        playerEffectService = new PlayerEffectService();
+        reloadService = new ReloadService();
+        recoilService = new RecoilService();
 
         itemRegistry = new ItemRegistry();
         itemRegistry.init();
@@ -108,5 +115,7 @@ public final class Core {
         gameServices.add(tntService);
         gameServices.add(poisonService);
         gameServices.add(actionBarService);
+        gameServices.add(playerEffectService);
+        gameServices.add(reloadService);
     }
 }

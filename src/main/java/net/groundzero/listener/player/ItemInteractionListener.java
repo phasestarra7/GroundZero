@@ -12,7 +12,9 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
+import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.HashSet;
@@ -95,7 +97,8 @@ public class ItemInteractionListener extends BaseListener implements Listener {
 
             // Only cancel vanilla if item has left-click functionality
             if (handled && type.hasLeftClickAction()) {
-                event.setCancelled(true);
+                // event.setCancelled(true);
+                // now just don't cancel
             }
         }
 
@@ -110,7 +113,8 @@ public class ItemInteractionListener extends BaseListener implements Listener {
 
             // Only cancel vanilla if item has left-click functionality
             if (handled && type.hasLeftClickAction()) {
-                event.setCancelled(true);
+                // event.setCancelled(true);
+                // now just don't cancel
             }
         }
 
@@ -164,7 +168,42 @@ public class ItemInteractionListener extends BaseListener implements Listener {
         boolean handled = handler.onLeftClick(player, item);
 
         if (handled && type.hasLeftClickAction()) {
-            // Cancel vanilla melee attack
+            // Cancel vanilla melee attack; was, but not now
+            // event.setCancelled(true);
+        }
+    }
+
+    /* ==================== ENTITY RIGHT CLICK: DIRECT HANDLER ==================== */
+
+    /**
+     * Handles right-click on entities (horses, villagers, boats, etc.).
+     * PlayerInteractEvent often does NOT cover entity interactions reliably.
+     *
+     * IMPORTANT:
+     * - Fires for both hands on 1.9+; filter to main hand to avoid double handling.
+     * - Cancel to block vanilla interactions (mounting, trading, etc.) when handled.
+     */
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onInteractEntity(PlayerInteractEntityEvent event) {
+        if (!Core.session.state().isIngame()) return;
+
+        // Filter off-hand duplicate calls
+        if (event.getHand() != EquipmentSlot.HAND) return;
+
+        Player player = event.getPlayer();
+        ItemStack item = player.getInventory().getItemInMainHand();
+        if (item == null || item.getType().isAir()) return;
+
+        ItemType type = Core.itemRegistry.getType(item);
+        if (type == null) return;
+
+        ItemHandler handler = Core.itemRegistry.getHandler(type);
+        if (handler == null) return;
+
+        boolean handled = handler.onRightClick(player, item);
+
+        // If handled, block vanilla entity interaction (mount/trade/etc.)
+        if (handled) {
             event.setCancelled(true);
         }
     }

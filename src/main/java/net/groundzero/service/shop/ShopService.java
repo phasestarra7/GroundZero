@@ -3,6 +3,7 @@ package net.groundzero.service.shop;
 import net.groundzero.app.Core;
 import net.groundzero.item.ItemTexts;
 import net.groundzero.item.ItemType;
+import net.groundzero.item.WeaponType;
 import net.groundzero.ui.options.ShopCategory;
 import net.groundzero.ui.options.ShopItem;
 import net.groundzero.util.Notifier;
@@ -21,6 +22,10 @@ import java.util.UUID;
  * 1. handleShopClick() receives raw slot
  * 2. Check if category slot (ignore) or item slot (process)
  * 3. processPurchase() handles plasma check, deduction, item giving, income add
+ *
+ * Ammo Purchase:
+ * - If magazine AND reserve are both 0: add to magazine (immediate use)
+ * - Otherwise: add to reserve (requires reload)
  */
 public class ShopService implements GameService {
 
@@ -86,7 +91,7 @@ public class ShopService implements GameService {
 
         // 3. Special handling for non-consumable weapons (ammo purchase)
         if (type.isNonConsumable() && type != ItemType.CONSOLE) {
-            processAmmoPurchase(player, playerId, shopItem);
+            processAmmoPurchase(playerId, shopItem);
             return;
         }
 
@@ -105,12 +110,23 @@ public class ShopService implements GameService {
 
     /**
      * Process ammo purchase for non-consumable weapons.
-     * These weapons are given at start, shop only sells ammo.
+     *
+     * Ammo destination:
+     * - If magazine AND reserve are both 0: add to magazine (immediate firing)
+     * - Otherwise: add to reserve (requires reload)
      */
-    private void processAmmoPurchase(Player player, UUID playerId, ShopItem shopItem) {
+    private void processAmmoPurchase(UUID playerId, ShopItem shopItem) {
+        Player player = Bukkit.getPlayer(playerId);
+        if (player == null || !player.isOnline()) return;
+
         int price = shopItem.getPrice();
         double incomeAdd = shopItem.getIncomeAdd();
         ItemType type = shopItem.type;
+        int ammoAmount = shopItem.getAmount();
+
+        // Map ItemType to WeaponType
+        WeaponType weapon = mapToWeaponType(type);
+        if (weapon == null) return;
 
         // Deduct plasma
         deductPlasma(playerId, price);
@@ -118,11 +134,23 @@ public class ShopService implements GameService {
         // Add income
         addIncome(playerId, incomeAdd);
 
-        // Add ammo based on weapon type
-        addAmmo(playerId, type);
+        // Check if both magazine and reserve are empty
+        int magazine = Core.reloadService.getMagazine(playerId, weapon);
+        int reserve = Core.reloadService.getReserve(playerId, weapon);
+
+        if (magazine == 0 && reserve == 0) {
+            // First purchase - add directly to magazine for immediate use
+            Core.reloadService.addMagazine(playerId, weapon, ammoAmount);
+        } else {
+            // Add to reserve (requires reload to use)
+            Core.reloadService.addReserve(playerId, weapon, ammoAmount);
+        }
+
+        // Update ActionBar to show new ammo
+        Core.actionBarService.updateImmediately(playerId);
 
         // Notify
-        onAmmoPurchaseSuccess(player, type, price, incomeAdd);
+        onAmmoPurchaseSuccess(player, type, price, incomeAdd, ammoAmount);
     }
 
     /* =========================================================
@@ -157,7 +185,18 @@ public class ShopService implements GameService {
         if (type.isNonConsumable()) return true;
 
         // Check for empty slot
-        return player.getInventory().firstEmpty() != -1;
+        if (player.getInventory().firstEmpty() != -1) return true;
+
+        // Check if same item exists and can stack
+        for (ItemStack item : player.getInventory().getContents()) {
+            if (item == null) continue;
+            ItemType existing = Core.itemRegistry.getType(item);
+            if (existing == type && item.getAmount() < item.getMaxStackSize()) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private void giveItem(Player player, ItemType type, int amount) {
@@ -172,33 +211,20 @@ public class ShopService implements GameService {
     }
 
     /* =========================================================
-       AMMO OPERATIONS (PLACEHOLDER)
+       WEAPON TYPE MAPPING
        ========================================================= */
 
-    private void addAmmo(UUID playerId, ItemType weaponType) {
-        // TODO: Implement ammo system properly
-        // For now, just add a fixed amount
-
-        var state = Core.playerStates.getOrCreate(playerId);
-
-        switch (weaponType) {
-            case ASSAULT -> {
-                int current = state.getAssaultAmmo();
-                state.setAssaultAmmo(current + Core.gameConfig.assaultMagazineSize);
-            }
-            case AUTO -> {
-                // TODO: state.setAutoAmmo(current + Core.gameConfig.autoMagazineSize);
-            }
-            case SNIPER -> {
-                // TODO: state.setSniperAmmo(current + Core.gameConfig.sniperMagazineSize);
-            }
-            case RPG -> {
-                // TODO: state.setRpgAmmo(current + Core.gameConfig.rpgMagazineSize);
-            }
-            default -> {
-                // Not a weapon
-            }
-        }
+    /**
+     * Map ItemType to WeaponType for ammo operations.
+     */
+    private WeaponType mapToWeaponType(ItemType type) {
+        return switch (type) {
+            case ASSAULT -> WeaponType.ASSAULT;
+            case AUTO -> WeaponType.AUTO;
+            case SNIPER -> WeaponType.SNIPER;
+            case RPG -> WeaponType.RPG;
+            default -> null;
+        };
     }
 
     /* =========================================================
@@ -229,9 +255,9 @@ public class ShopService implements GameService {
         Core.notifier.sound(player, Sound.ENTITY_PLAYER_LEVELUP, Notifier.PitchLevel.HIGH);
     }
 
-    private void onAmmoPurchaseSuccess(Player player, ItemType type, int price, double incomeAdd) {
+    private void onAmmoPurchaseSuccess(Player player, ItemType type, int price, double incomeAdd, int ammoAmount) {
         Core.notifier.message(player, false,
-                "Purchased §b" + type.displayName + " Ammo",
+                "Purchased §b" + type.displayName + " Ammo §f(+" + ammoAmount + " rounds)",
                 "§7-" + price + " Plasma §8| §7+" + String.format("%.1f", incomeAdd) + "/s Income"
         );
         Core.notifier.sound(player, Sound.ENTITY_EXPERIENCE_ORB_PICKUP, Notifier.PitchLevel.HIGH);

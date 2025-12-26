@@ -58,7 +58,7 @@ public class GameConfig {
     public int assaultPrice = 100;
     public int autoPrice = 100;
     public int sniperPrice = 100;
-    public int RPGPrice = 100;
+    public int rpgPrice = 100;
     public int concussivePrice = 100;
     public int smokePrice = 100;
 
@@ -66,7 +66,7 @@ public class GameConfig {
     public int blocksPrice = 100;
     public int bridgePrice = 100;
     public int bunkerPrice = 100;
-    public int antiexpPrice = 100;
+    public int antiExpPrice = 100;
     public int pearlPrice = 100;
 
     public int aerialSimplePrice = 100;
@@ -81,12 +81,12 @@ public class GameConfig {
     public int missileBunkerPrice = 100;
     public int missileHighExpPrice = 100;
     public int missileNuclearPrice = 100;
-    public int missileABMPrice = 100;
+    public int missileAbmPrice = 100;
 
     public double assaultIncome = 0.1;
     public double autoIncome = 0.1;
     public double sniperIncome = 0.1;
-    public double RPGIncome = 0.1;
+    public double rpgIncome = 0.1;
     public double concussiveIncome = 0.1;
     public double smokeIncome = 0.1;
 
@@ -94,7 +94,7 @@ public class GameConfig {
     public double blocksIncome = 0.1;
     public double bridgeIncome = 0.1;
     public double bunkerIncome = 0.1;
-    public double antiexpIncome = 0.1;
+    public double antiExpIncome = 0.1;
     public double pearlIncome = 0.1;
 
     public double aerialSimpleIncome = 0.1;
@@ -109,7 +109,7 @@ public class GameConfig {
     public double missileBunkerIncome = 0.1;
     public double missileHighExpIncome = 0.1;
     public double missileNuclearIncome = 0.1;
-    public double missileABMIncome = 0.1;
+    public double missileAbmIncome = 0.1;
 
     public int assaultAmount = 30;
     public int autoAmount = 60;
@@ -123,7 +123,7 @@ public class GameConfig {
     public int blocksAmount = 64;
     public int bridgeAmount = 1;
     public int bunkerAmount = 1;
-    public int antiexpAmount = 1;
+    public int antiExpAmount = 1;
     public int pearlAmount = 1;
 
     public int aerialSimpleAmount = 1;
@@ -141,11 +141,46 @@ public class GameConfig {
     public int missileAbmAmount = 1;
 
     /* ===== items ===== */
+
+    /* ===== Assault Rifle ===== */
     public double assaultDamage = 5.0;
     public double assaultProjectileSpeed = 5.0;
-    public double assaultSpread = 0.02;
-    public int assaultCooldownTicks = 0;
+    public double assaultSpread = 0.05;
     public int assaultMagazineSize = 30;
+    public int assaultReloadTicks = 60;          // 3 seconds
+    public double assaultRecoilPitch = 1.5;      // upward kick
+    public double assaultRecoilYaw = 0.8;        // left/right range
+    public int assaultRecoilRecoveryTicks = 4;   // ticks to recover
+
+    /* ===== Auto Rifle ===== */
+    public double autoDamage = 3.0;
+    public double autoProjectileSpeed = 4.5;
+    public double autoSpread = 0.04;
+    public int autoMagazineSize = 60;
+    public int autoReloadTicks = 80;             // 4 seconds
+    public double autoRecoilPitch = 0.8;
+    public double autoRecoilYaw = 1.2;
+    public int autoRecoilRecoveryTicks = 3;
+
+    /* ===== Sniper Rifle ===== */
+    public double sniperDamage = 20.0;
+    public double sniperProjectileSpeed = 8.0;
+    public double sniperSpread = 0.0;            // no spread when scoped
+    public int sniperMagazineSize = 5;
+    public int sniperReloadTicks = 100;          // 5 seconds
+    public double sniperRecoilPitch = 4.0;
+    public double sniperRecoilYaw = 0.3;
+    public int sniperRecoilRecoveryTicks = 8;
+
+    /* ===== RPG ===== */
+    public double rpgDamage = 25.0;              // direct hit (explosion separate)
+    public double rpgProjectileSpeed = 2.5;
+    public double rpgSpread = 0.01;
+    public int rpgMagazineSize = 1;
+    public int rpgReloadTicks = 120;             // 6 seconds
+    public double rpgRecoilPitch = 3.0;
+    public double rpgRecoilYaw = 0.5;
+    public int rpgRecoilRecoveryTicks = 6;
 
     public GameConfig() {}
 }

@@ -116,7 +116,7 @@ public final class ActionBarService implements TickBus.Tickable, GameService {
         ItemStack item = player.getInventory().getItemInMainHand();
 
         // Generate message
-        String message = generateMessage(player, item);
+        String message = generateMessage(player, item, currentTick);
 
         // Send ActionBar
         if (message.isEmpty()) {
@@ -139,7 +139,7 @@ public final class ActionBarService implements TickBus.Tickable, GameService {
      * - Item-specific message (from ItemHandler)
      * - Empty string (hide ActionBar for vanilla items)
      */
-    private String generateMessage(Player player, ItemStack item) {
+    private String generateMessage(Player player, ItemStack item, int currentTick) {
         if (item == null || item.getType().isAir()) {
             return ""; // Hide ActionBar for empty hand
         }
@@ -151,40 +151,48 @@ public final class ActionBarService implements TickBus.Tickable, GameService {
         }
 
         // Generate message using ItemTexts
-        return generateDefaultMessage(player, type);
+        return generateDefaultMessage(player, type, currentTick);
     }
 
     /**
      * Generate ActionBar message using ItemTexts.
      */
-    private String generateDefaultMessage(Player player, ItemType type) {
+    private String generateDefaultMessage(Player player, ItemType type, int currentTick) {
         var state = Core.playerStates.getOrCreate(player.getUniqueId());
 
-        int currentAmmo = 0;
-        int maxAmmo = 0;
+        int magazine = 0;
+        int reserve = 0;
+        boolean isReloading = false;
 
-        // Get ammo for magazine-based weapons
+        // Get ammo state for magazine-based weapons
         switch (type) {
             case ASSAULT -> {
-                currentAmmo = state.getAssaultAmmo();
-                maxAmmo = Core.gameConfig.assaultAmount;
+                magazine = state.getAssaultMagazine();
+                reserve = state.getAssaultReserve();
+                isReloading = state.isAssaultReloading(currentTick);
             }
             case AUTO -> {
-                // TODO: currentAmmo = state.getAutoAmmo();
-                maxAmmo = Core.gameConfig.autoAmount;
+                magazine = state.getAutoMagazine();
+                reserve = state.getAutoReserve();
+                isReloading = state.isAutoReloading(currentTick);
             }
             case SNIPER -> {
-                // TODO: currentAmmo = state.getSniperAmmo();
-                maxAmmo = Core.gameConfig.sniperAmount;
+                magazine = state.getSniperMagazine();
+                reserve = state.getSniperReserve();
+                isReloading = state.isSniperReloading(currentTick);
             }
             case RPG -> {
-                // TODO: currentAmmo = state.getRpgAmmo();
-                maxAmmo = Core.gameConfig.rpgAmount;
+                magazine = state.getRpgMagazine();
+                reserve = state.getRpgReserve();
+                isReloading = state.isRpgReloading(currentTick);
             }
-            default -> {}
+            default -> {
+                // Non-magazine items (Console, consumables, etc.)
+                // Use 0/0 which will be handled appropriately by ItemTexts
+            }
         }
 
-        return ItemTexts.getActionBar(type, currentAmmo, maxAmmo);
+        return ItemTexts.getActionBar(type, magazine, reserve, isReloading);
     }
 
     /* ===================== Utility ===================== */

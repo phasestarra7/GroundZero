@@ -58,7 +58,7 @@ public enum ShopItem {
             case ASSAULT -> Core.gameConfig.assaultPrice;
             case AUTO -> Core.gameConfig.autoPrice;
             case SNIPER -> Core.gameConfig.sniperPrice;
-            case RPG -> Core.gameConfig.RPGPrice;
+            case RPG -> Core.gameConfig.rpgPrice;
             case CONCUSSIVE -> Core.gameConfig.concussivePrice;
             case SMOKE -> Core.gameConfig.smokePrice;
 
@@ -67,7 +67,7 @@ public enum ShopItem {
             case BLOCKS -> Core.gameConfig.blocksPrice;
             case BRIDGE -> Core.gameConfig.bridgePrice;
             case BUNKER -> Core.gameConfig.bunkerPrice;
-            case ANTIEXP -> Core.gameConfig.antiexpPrice;
+            case ANTIEXP -> Core.gameConfig.antiExpPrice;
             case PEARL -> Core.gameConfig.pearlPrice;
 
             // Aerial
@@ -84,7 +84,7 @@ public enum ShopItem {
             case MISSILE_BUNKER -> Core.gameConfig.missileBunkerPrice;
             case MISSILE_HIGHEXP -> Core.gameConfig.missileHighExpPrice;
             case MISSILE_NUCLEAR -> Core.gameConfig.missileNuclearPrice;
-            case MISSILE_ABM -> Core.gameConfig.missileABMPrice;
+            case MISSILE_ABM -> Core.gameConfig.missileAbmPrice;
         };
     }
 
@@ -97,7 +97,7 @@ public enum ShopItem {
             case ASSAULT -> Core.gameConfig.assaultIncome;
             case AUTO -> Core.gameConfig.autoIncome;
             case SNIPER -> Core.gameConfig.sniperIncome;
-            case RPG -> Core.gameConfig.RPGIncome;
+            case RPG -> Core.gameConfig.rpgIncome;
             case CONCUSSIVE -> Core.gameConfig.concussiveIncome;
             case SMOKE -> Core.gameConfig.smokeIncome;
 
@@ -106,7 +106,7 @@ public enum ShopItem {
             case BLOCKS -> Core.gameConfig.blocksIncome;
             case BRIDGE -> Core.gameConfig.bridgeIncome;
             case BUNKER -> Core.gameConfig.bunkerIncome;
-            case ANTIEXP -> Core.gameConfig.antiexpIncome;
+            case ANTIEXP -> Core.gameConfig.antiExpIncome;
             case PEARL -> Core.gameConfig.pearlIncome;
 
             // Aerial
@@ -123,7 +123,7 @@ public enum ShopItem {
             case MISSILE_BUNKER -> Core.gameConfig.missileBunkerIncome;
             case MISSILE_HIGHEXP -> Core.gameConfig.missileHighExpIncome;
             case MISSILE_NUCLEAR -> Core.gameConfig.missileNuclearIncome;
-            case MISSILE_ABM -> Core.gameConfig.missileABMIncome;
+            case MISSILE_ABM -> Core.gameConfig.missileAbmIncome;
         };
     }
 
@@ -145,7 +145,7 @@ public enum ShopItem {
             case BLOCKS -> Core.gameConfig.blocksAmount;
             case BRIDGE -> Core.gameConfig.bridgeAmount;
             case BUNKER -> Core.gameConfig.bunkerAmount;
-            case ANTIEXP -> Core.gameConfig.antiexpAmount;
+            case ANTIEXP -> Core.gameConfig.antiExpAmount;
             case PEARL -> Core.gameConfig.pearlAmount;
 
             // Aerial

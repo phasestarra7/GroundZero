@@ -60,11 +60,23 @@ public class LoadoutService implements GameService {
         // Give console (slot 8)
         p.getInventory().setItem(8, Core.itemRegistry.createItemForInventory(ItemType.CONSOLE, 1));
 
-        // Initialize weapon ammo (all start at 0)
+        // Initialize weapon ammo state (all start at 0 magazine, 0 reserve)
         PlayerGameState state = Core.playerStates.getOrCreate(playerId);
-        state.setAssaultAmmo(0);
-        // TODO: state.setAutoAmmo(0);
-        // TODO: state.setSniperAmmo(0);
-        // TODO: state.setRpgAmmo(0);
+
+        state.setAssaultMagazine(0);
+        state.setAssaultReserve(0);
+        state.setAssaultReloadEndTick(0);
+
+        state.setAutoMagazine(0);
+        state.setAutoReserve(0);
+        state.setAutoReloadEndTick(0);
+
+        state.setSniperMagazine(0);
+        state.setSniperReserve(0);
+        state.setSniperReloadEndTick(0);
+
+        state.setRpgMagazine(0);
+        state.setRpgReserve(0);
+        state.setRpgReloadEndTick(0); // TODO : revisit and check after fully implemented
     }
 }

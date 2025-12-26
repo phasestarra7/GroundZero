@@ -339,18 +339,31 @@ public final class ItemTexts {
 
     /**
      * Get action bar string for item type.
-     * For weapons with ammo, appends ammo display.
+     * For weapons with magazine system, shows magazine/reserve and reload state.
+     *
+     * @param type Item type
+     * @param magazine Current magazine ammo
+     * @param reserve Reserve ammo
+     * @param isReloading Whether currently reloading
+     * @return ActionBar string
      */
-    public static String getActionBar(ItemType type, int currentAmmo, int maxAmmo) {
+    public static String getActionBar(ItemType type, int magazine, int reserve, boolean isReloading) {
         List<String> actions = getActionDescription(type);
         if (actions.isEmpty()) return "";
 
-        String base = String.join("  ", actions);
+        String base = String.join(" ", actions);
 
-        // Append ammo for magazine-based weapons
+        // Append ammo display for magazine-based weapons
         if (type == ItemType.ASSAULT || type == ItemType.AUTO ||
                 type == ItemType.SNIPER || type == ItemType.RPG) {
-            base += "  §e[Ammo]§f " + currentAmmo + "/" + maxAmmo;
+
+            if (isReloading) {
+                // Show reloading indicator with current ammo state
+                base += " §c[RELOADING]§f " + magazine + "/" + reserve;
+            } else {
+                // Normal ammo display: magazine/reserve
+                base += " §e[Ammo]§f " + magazine + "/" + reserve;
+            }
         }
 
         return base;

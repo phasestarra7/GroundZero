@@ -2,7 +2,8 @@ package net.groundzero.service.player;
 
 import org.bukkit.scheduler.BukkitTask;
 
-import java.util.HashMap;
+import net.groundzero.service.effect.EffectSource;
+import java.util.EnumMap;
 import java.util.Map;
 
 /**
@@ -29,8 +30,30 @@ public class PlayerGameState {
     /* ===== Hotbar Swap (Console) ===== */
     private boolean hotbarSwapped = false;
 
-    /* ===== Weapon Ammo ===== */
-    private int assaultAmmo = 0;
+    /* ===== Effect Sources (ADS, Zoom, Concussive, etc.) ===== */
+    private final Map<EffectSource, Integer> effectSources = new EnumMap<>(EffectSource.class);
+    private boolean jumpBlocked = false;
+
+    /* ===== Assault Rifle Ammo ===== */
+    private int assaultMagazine = 0;
+    private int assaultReserve = 0;
+    private int assaultReloadEndTick = 0;
+
+    /* ===== Auto Rifle Ammo ===== */
+    private int autoMagazine = 0;
+    private int autoReserve = 0;
+    private int autoReloadEndTick = 0;
+
+    /* ===== Sniper Rifle Ammo ===== */
+    private int sniperMagazine = 0;
+    private int sniperReserve = 0;
+    private int sniperReloadEndTick = 0;
+
+    /* ===== RPG Ammo ===== */
+    private int rpgMagazine = 0;
+    private int rpgReserve = 0;
+    private int rpgReloadEndTick = 0;
+
 
     /* =========================================================
        Combat & Death State
@@ -125,30 +148,99 @@ public class PlayerGameState {
     }
 
     /* =========================================================
-       Weapon Ammo
+       Effect Sources
        ========================================================= */
 
-    public int getAssaultAmmo() {
-        return assaultAmmo;
+    /**
+     * Get active effect sources map.
+     * Key: EffectSource, Value: endTick (0 = manual, >0 = auto-expire tick)
+     */
+    // if you need ADS, ZOOM, CONCUSSIVE source : go to PlayerEffectService
+    public Map<EffectSource, Integer> getEffectSources() { return effectSources; }
+    public boolean isJumpBlocked() { return jumpBlocked; }
+    public void setJumpBlocked(boolean blocked) { this.jumpBlocked = blocked; }
+
+    /* =========================================================
+       Assault Rifle
+       ========================================================= */
+
+    public int getAssaultMagazine() { return assaultMagazine; }
+    public void setAssaultMagazine(int v) { this.assaultMagazine = Math.max(0, v); }
+
+    public int getAssaultReserve() { return assaultReserve; }
+    public void setAssaultReserve(int v) { this.assaultReserve = Math.max(0, v); }
+
+    public int getAssaultReloadEndTick() { return assaultReloadEndTick; }
+    public void setAssaultReloadEndTick(int v) { this.assaultReloadEndTick = v; }
+
+    public boolean isAssaultReloading(int currentTick) {
+        return assaultReloadEndTick > 0 && currentTick < assaultReloadEndTick;
     }
 
-    public void setAssaultAmmo(int ammo) {
-        this.assaultAmmo = Math.max(0, ammo);
+    /* =========================================================
+       Auto Rifle
+       ========================================================= */
+
+    public int getAutoMagazine() { return autoMagazine; }
+    public void setAutoMagazine(int v) { this.autoMagazine = Math.max(0, v); }
+
+    public int getAutoReserve() { return autoReserve; }
+    public void setAutoReserve(int v) { this.autoReserve = Math.max(0, v); }
+
+    public int getAutoReloadEndTick() { return autoReloadEndTick; }
+    public void setAutoReloadEndTick(int v) { this.autoReloadEndTick = v; }
+
+    public boolean isAutoReloading(int currentTick) {
+        return autoReloadEndTick > 0 && currentTick < autoReloadEndTick;
     }
 
-    public boolean consumeAssaultAmmo() {
-        if (assaultAmmo <= 0) return false;
-        assaultAmmo--;
-        return true;
+    /* =========================================================
+       Sniper Rifle
+       ========================================================= */
+
+    public int getSniperMagazine() { return sniperMagazine; }
+    public void setSniperMagazine(int v) { this.sniperMagazine = Math.max(0, v); }
+
+    public int getSniperReserve() { return sniperReserve; }
+    public void setSniperReserve(int v) { this.sniperReserve = Math.max(0, v); }
+
+    public int getSniperReloadEndTick() { return sniperReloadEndTick; }
+    public void setSniperReloadEndTick(int v) { this.sniperReloadEndTick = v; }
+
+    public boolean isSniperReloading(int currentTick) {
+        return sniperReloadEndTick > 0 && currentTick < sniperReloadEndTick;
     }
 
-    public void resetAmmo() {
-        this.assaultAmmo = 0;
+    /* =========================================================
+       RPG
+       ========================================================= */
+
+    public int getRpgMagazine() { return rpgMagazine; }
+    public void setRpgMagazine(int v) { this.rpgMagazine = Math.max(0, v); }
+
+    public int getRpgReserve() { return rpgReserve; }
+    public void setRpgReserve(int v) { this.rpgReserve = Math.max(0, v); }
+
+    public int getRpgReloadEndTick() { return rpgReloadEndTick; }
+    public void setRpgReloadEndTick(int v) { this.rpgReloadEndTick = v; }
+
+    public boolean isRpgReloading(int currentTick) {
+        return rpgReloadEndTick > 0 && currentTick < rpgReloadEndTick;
     }
 
     /* =========================================================
        Reset (called on session end)
        ========================================================= */
+
+    /**
+     * Reset all weapon ammo state.
+     */
+    public void resetAmmo() {
+        // Assault
+        this.assaultMagazine = 0;
+        this.assaultReserve = 0;
+        this.assaultReloadEndTick = 0;
+    }
 
     /**
      * Reset all state for this player.
@@ -159,5 +251,7 @@ public class PlayerGameState {
         resetIdle();
         resetAmmo();
         hotbarSwapped = false;
+        effectSources.clear();
+        jumpBlocked = false;
     }
 }
