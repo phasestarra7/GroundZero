@@ -16,7 +16,7 @@ public final class AssaultModelHandler implements ModelHandler {
     private static final float SCALE_X = 0.15f;
     private static final float SCALE_Y = 0.15f;
     private static final float SCALE_Z = 0.4f;
-    private static final Material MATERIAL = Material.LIGHT_GRAY_CONCRETE;
+    private static final Material MATERIAL = Material.WHITE_CONCRETE;
 
     @Override
     public ModelType getModelType() {

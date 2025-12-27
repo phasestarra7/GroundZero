@@ -144,7 +144,7 @@ public final class GameConfig {
     /* ===== item cooldown ===== */
     public int assaultCooldownTicksL = 0;
     public int assaultCooldownTicksR = 0;
-    public int autoCooldownTicksL = 2;
+    public int autoCooldownTicksL = 0;
     public int autoCooldownTicksR = 0;
     public int sniperCooldownTicksL = 50;
     public int sniperCooldownTicksR = 0;
@@ -200,6 +200,9 @@ public final class GameConfig {
     public double autoRecoilYaw = 1.2;
     public int autoRecoilRecoveryTicks = 1;
 
+    public int autoOverloadGainPerTick = 5;
+    public int autoOverloadLossPerTick = 1;
+    public int autoOverloadConsumePerShot = 5;
     public int autoFireIntervalTicks = 2;
 
     /* ===== Sniper Rifle ===== */
