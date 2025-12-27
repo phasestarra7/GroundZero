@@ -54,7 +54,7 @@ public final class GameConfig {
     /* ===== actionbar ===== */
     public int actionBarIntervalTicks = 10;
 
-    /* ===== gui, itemdata ===== */
+    /* ===== item price ===== */
     public int assaultPrice = 100;
     public int autoPrice = 100;
     public int sniperPrice = 100;
@@ -83,6 +83,7 @@ public final class GameConfig {
     public int missileNuclearPrice = 100;
     public int missileAbmPrice = 100;
 
+    /* ===== item income ===== */
     public double assaultIncome = 0.1;
     public double autoIncome = 0.1;
     public double sniperIncome = 0.1;
@@ -111,11 +112,11 @@ public final class GameConfig {
     public double missileNuclearIncome = 0.1;
     public double missileAbmIncome = 0.1;
 
-    public int assaultAmount = 30;
-    public int autoAmount = 60;
-    public int sniperAmount = 5;
-    public int rpgAmount = 5;
-    // above is magazine size
+    /* ===== item amount ===== */
+    public int assaultAmount = 30;   // magazine size
+    public int autoAmount = 60;      // magazine size
+    public int sniperAmount = 5;     // magazine size
+    public int rpgAmount = 5;        // magazine size
     public int concussiveAmount = 1;
     public int smokeAmount = 1;
 
@@ -140,7 +141,44 @@ public final class GameConfig {
     public int missileNuclearAmount = 1;
     public int missileAbmAmount = 1;
 
-    /* ===== items ===== */
+    /* ===== item cooldown ===== */
+    public int assaultCooldownTicksL = 0;
+    public int assaultCooldownTicksR = 0;
+    public int autoCooldownTicksL = 2;
+    public int autoCooldownTicksR = 0;
+    public int sniperCooldownTicksL = 50;
+    public int sniperCooldownTicksR = 0;
+    public int rpgCooldownTicksL = 0;
+    public int rpgCooldownTicksR = 50;
+    public int concussiveCooldownTicksR = 20;
+    public int smokeCooldownTicksR = 20;
+
+    public int medkitCooldownTicksR = 20;
+    public int blocksCooldownTicksR = 0;
+    public int bridgeCooldownTicksR = 20;
+    public int bunkerCooldownTicksR = 20;
+    public int antiExpCooldownTicksR = 20;
+    public int pearlCooldownTicksR = 20;
+
+    public int aerialSimpleCooldownTicksR = 20;
+    public int aerialArrowCooldownTicksR = 20;
+    public int aerialClusterCooldownTicksR = 20;
+    public int aerialSpreaderCooldownTicksR = 20;
+    public int aerialCarpetCooldownTicksR = 20;
+    public int aerialHackCooldownTicksR = 20;
+
+    public int missileSimpleCooldownTicksL = 20;
+    public int missileSimpleCooldownTicksR = 20;
+    public int missilePoisonCooldownTicksL = 20;
+    public int missilePoisonCooldownTicksR = 20;
+    public int missileBunkerCooldownTicksL = 20;
+    public int missileBunkerCooldownTicksR = 20;
+    public int missileHighExpCooldownTicksL = 20;
+    public int missileHighExpCooldownTicksR = 20;
+    public int missileNuclearCooldownTicksL = 20;
+    public int missileNuclearCooldownTicksR = 20;
+    public int missileAbmCooldownTicksL = 20;
+    public int missileAbmCooldownTicksR = 20;
 
     /* ===== Assault Rifle ===== */
     public double assaultDamage = 5.0;
@@ -150,7 +188,6 @@ public final class GameConfig {
     public int assaultReloadTicks = 60;          // 3 seconds
     public double assaultRecoilPitch = 1.5;      // upward kick
     public double assaultRecoilYaw = 1;        // left/right range
-    public int assaultCooldownTicks = 0;      // assault has no cooldown
     public int assaultRecoilRecoveryTicks = 4;   // ticks to recover
 
     /* ===== Auto Rifle ===== */
@@ -161,8 +198,9 @@ public final class GameConfig {
     public int autoReloadTicks = 80;             // 4 seconds
     public double autoRecoilPitch = 0.8;
     public double autoRecoilYaw = 1.2;
-    public int autoCooldownTicks = 2; // when toggled, shoot 10 shots per second
     public int autoRecoilRecoveryTicks = 1;
+
+    public int autoFireIntervalTicks = 2;
 
     /* ===== Sniper Rifle ===== */
     public double sniperDamage = 20.0;
@@ -170,10 +208,9 @@ public final class GameConfig {
     public double sniperSpread = 0.00;            // no spread when scoped
     public int sniperMagazineSize = 5;
     public int sniperReloadTicks = 100;          // 5 seconds
-    public double sniperRecoilPitch = 4.0;
+    public double sniperRecoilPitch = 15.0;
     public double sniperRecoilYaw = 1.0;
-    public int sniperCooldownTicks = 50;
-    public int sniperRecoilRecoveryTicks = 12;
+    public int sniperRecoilRecoveryTicks = 20;
 
     /* ===== RPG ===== */
     public double rpgDamage = 25.0;              // direct hit (explosion separate)
@@ -183,7 +220,6 @@ public final class GameConfig {
     public int rpgReloadTicks = 120;             // 6 seconds
     public double rpgRecoilPitch = 3.0;
     public double rpgRecoilYaw = 0.5;
-    public int rpgCooldownTicks = 0;           // rpg has no cooldown
     public int rpgRecoilRecoveryTicks = 6;
 
     public GameConfig() {}

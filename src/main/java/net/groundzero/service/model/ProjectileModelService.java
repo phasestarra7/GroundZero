@@ -3,13 +3,17 @@ package net.groundzero.service.model;
 import net.groundzero.app.Core;
 import net.groundzero.service.GameService;
 import net.groundzero.service.model.handler.AssaultModelHandler;
+import net.groundzero.service.model.handler.SniperModelHandler;
 import net.groundzero.service.tick.TickBus;
 import org.bukkit.Location;
 import org.bukkit.entity.Display;
 import org.bukkit.entity.Entity;
 import org.bukkit.util.Vector;
 
-import java.util.*;
+import java.util.EnumMap;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -35,6 +39,9 @@ public final class ProjectileModelService implements TickBus.Tickable, GameServi
 
     // Active models: anchorId → ModelData
     private final Map<UUID, ModelData> activeModels = new ConcurrentHashMap<>();
+
+    // Maximum lifetime before forced cleanup (20 seconds = 400 ticks)
+    private static final int MAX_LIFETIME_TICKS = 400;
 
     private boolean running = false;
 
@@ -78,7 +85,25 @@ public final class ProjectileModelService implements TickBus.Tickable, GameServi
 
         // Register all handlers
         registerHandler(new AssaultModelHandler());
-        // TODO: Add more handlers as implemented
+//        registerHandler(new AutoModelHandler());
+        registerHandler(new SniperModelHandler());
+//        registerHandler(new rpgModelHandler());
+//        registerHandler(new concussiveModelHandler());
+//        registerHandler(new smokeModelHandler());
+//
+//        registerHandler(new aerialSimpleModelHandler());
+//        registerHandler(new aerialArrowModelHandler());
+//        registerHandler(new aerialClusterModelHandler());
+//        registerHandler(new aerialSpreaderModelHandler());
+//        registerHandler(new aerialCarpetModelHandler());
+//        registerHandler(new aerialHackHandler());
+//
+//        registerHandler(new missileSimpleModelHandler());
+//        registerHandler(new missilePoisonModelHandler());
+//        registerHandler(new missileBunkerModelHandler());
+//        registerHandler(new missileHighExpModelHandler());
+//        registerHandler(new missileNuclearHandler());
+//        registerHandler(new missileAbmHandler());
     }
 
     private void registerHandler(ModelHandler handler) {
@@ -162,6 +187,14 @@ public final class ProjectileModelService implements TickBus.Tickable, GameServi
                 continue;
             }
 
+            // Check if it's stupidly living long, aka. stuck
+            int ticksAlive = data.getTicksAlive(currentTick);
+            if (ticksAlive > MAX_LIFETIME_TICKS) {
+                removeModelInternal(data);
+                it.remove();
+                continue;
+            }
+
             Entity anchor = data.getAnchor();
             Display display = data.getDisplay();
             ModelHandler handler = data.getHandler();
@@ -178,7 +211,6 @@ public final class ProjectileModelService implements TickBus.Tickable, GameServi
             }
 
             // Call handler's onTick for visual effects (particles, etc.)
-            int ticksAlive = data.getTicksAlive(currentTick);
             handler.onTick(display, anchor, ticksAlive);
         }
     }
@@ -190,9 +222,13 @@ public final class ProjectileModelService implements TickBus.Tickable, GameServi
 
         Display display = data.getDisplay();
         if (display != null) {
-            try {
-                display.remove();
-            } catch (Exception ignored) {}
+            try { display.remove(); } catch (Exception ignored) {}
+        }
+
+        // remove arrow too, not being simulated
+        Entity anchor = data.getAnchor();
+        if (anchor != null && anchor.isValid()) {
+            try { anchor.remove(); } catch (Exception ignored) {}
         }
     }
 

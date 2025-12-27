@@ -53,6 +53,7 @@ public final class Core {
     public static PoisonService poisonService;
     public static ActionBarService actionBarService;
     public static PlayerEffectService playerEffectService;
+    public static CooldownService cooldownService;
     public static ReloadService reloadService;
     public static RecoilService recoilService;
     public static ProjectileModelService projectileModelService;
@@ -95,6 +96,7 @@ public final class Core {
         poisonService = new PoisonService();
         actionBarService = new ActionBarService();
         playerEffectService = new PlayerEffectService();
+        cooldownService = new CooldownService();
         reloadService = new ReloadService();
         recoilService = new RecoilService();
         projectileModelService = new ProjectileModelService();
@@ -119,6 +121,7 @@ public final class Core {
         gameServices.add(poisonService);
         gameServices.add(actionBarService);
         gameServices.add(playerEffectService);
+        gameServices.add(cooldownService);
         gameServices.add(reloadService);
         gameServices.add(projectileModelService);
     }

@@ -11,16 +11,16 @@ import org.bukkit.entity.Entity;
 import org.bukkit.util.Transformation;
 import org.bukkit.util.Vector;
 
-public final class AssaultModelHandler implements ModelHandler {
+public class SniperModelHandler implements ModelHandler {
 
     private static final float SCALE_X = 0.15f;
     private static final float SCALE_Y = 0.15f;
     private static final float SCALE_Z = 0.4f;
-    private static final Material MATERIAL = Material.LIGHT_GRAY_CONCRETE;
+    private static final Material MATERIAL = Material.RED_CONCRETE;
 
     @Override
     public ModelType getModelType() {
-        return ModelType.ASSAULT_BULLET;
+        return ModelType.SNIPER_BULLET;
     }
 
     @Override

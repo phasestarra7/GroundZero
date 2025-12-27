@@ -215,10 +215,10 @@ public final class ActionBarService implements TickBus.Tickable, GameService {
 //                t = t.replace("Overdrive", "Overdrive " + toggleTag(isOverdrive));
 //                yield t;
 //            }
-//            case SNIPER -> {
-//                boolean isScope = Core.playerEffectService.hasSource(playerId, EffectSource.SNIPER_SCOPE);
-//                yield out.replace("Scope", "Scope " + toggleTag(isScope));
-//            }
+            case SNIPER -> {
+                boolean isScoped = Core.playerEffectService.hasSource(playerId, EffectSource.SNIPER_SCOPED);
+                yield out.replace("Scope", "Scope" + toggleDot(isScoped));
+            }
             default -> out;
         };
     }

@@ -1,5 +1,6 @@
 package net.groundzero.service.player;
 
+import net.groundzero.item.ItemType;
 import org.bukkit.scheduler.BukkitTask;
 
 import net.groundzero.service.effect.EffectSource;
@@ -33,6 +34,10 @@ public final class PlayerGameState {
     /* ===== Effect Sources (ADS, Zoom, Concussive, etc.) ===== */
     private final Map<EffectSource, Integer> effectSources = new EnumMap<>(EffectSource.class);
     private boolean jumpBlocked = false;
+
+    /* ===== Cooldown State (all items, left/right separate) ===== */
+    private final Map<ItemType, Integer> leftCooldownEndTicks = new EnumMap<>(ItemType.class);
+    private final Map<ItemType, Integer> rightCooldownEndTicks = new EnumMap<>(ItemType.class);
 
     /* ===== Assault Rifle ===== */
     private int assaultMagazine = 0;
@@ -169,6 +174,33 @@ public final class PlayerGameState {
     public void setJumpBlocked(boolean blocked) { this.jumpBlocked = blocked; }
 
     /* =========================================================
+       Cooldown State (all items)
+       ========================================================= */
+
+    public int getLeftCooldownEndTick(ItemType type) {
+        return leftCooldownEndTicks.getOrDefault(type, 0);
+    }
+
+    public void setLeftCooldownEndTick(ItemType type, int tick) {
+        if (type == null) return;
+        leftCooldownEndTicks.put(type, tick);
+    }
+
+    public int getRightCooldownEndTick(ItemType type) {
+        return rightCooldownEndTicks.getOrDefault(type, 0);
+    }
+
+    public void setRightCooldownEndTick(ItemType type, int tick) {
+        if (type == null) return;
+        rightCooldownEndTicks.put(type, tick);
+    }
+
+    public void clearAllCooldowns() {
+        leftCooldownEndTicks.clear();
+        rightCooldownEndTicks.clear();
+    }
+
+    /* =========================================================
        Assault Rifle
        ========================================================= */
 
@@ -261,5 +293,6 @@ public final class PlayerGameState {
         hotbarSwapped = false;
         effectSources.clear();
         jumpBlocked = false;
+        clearAllCooldowns();
     }
 }

@@ -42,7 +42,7 @@ public final class ItemRegistry {
         // Personal Weapons
         registerHandler(ItemType.ASSAULT, new AssaultHandler());
 //        registerHandler(ItemType.AUTO, new AutoHandler());
-//        registerHandler(ItemType.SNIPER, new SniperHandler());
+        registerHandler(ItemType.SNIPER, new SniperHandler());
 //        registerHandler(ItemType.RPG, new RpgHandler());
 //        registerHandler(ItemType.CONCUSSIVE, new ConcussiveHandler());
 //        registerHandler(ItemType.SMOKE, new SmokeHandler());
