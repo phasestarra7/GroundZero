@@ -208,13 +208,23 @@ public final class ActionBarService implements TickBus.Tickable, GameService {
                 boolean isADS = Core.playerEffectService.hasSource(playerId, EffectSource.ASSAULT_ADS);
                 yield out.replace("ADS Mode", "ADS Mode" + toggleDot(isADS));
             }
-//            case AUTO -> {
-//                boolean isAutoFire = Core.playerEffectService.hasSource(playerId, EffectSource.AUTO_AUTOFIRE);
-//                boolean isOverdrive = Core.playerEffectService.hasSource(playerId, EffectSource.AUTO_OVERDRIVE);
-//                String t = out.replace("Auto Fire", "Auto " + toggleTag(isAutoFire));
-//                t = t.replace("Overdrive", "Overdrive " + toggleTag(isOverdrive));
-//                yield t;
-//            }
+            case AUTO -> {
+                PlayerGameState state = Core.playerStates.get(playerId);
+                if (state == null) yield out;
+
+                boolean isFiring = state.isAutoFireMode();
+                boolean isOverdrive = state.isAutoOverdrive();
+                int power = state.getAutoOverdriveStack();
+
+                // Format: "Auto Fire●  Overdrive●  ⚡123"
+                String result = out.replace("Auto Fire", "Auto Fire" + toggleDot(isFiring));
+                result = result.replace("Overdrive", "Overdrive" + toggleDot(isOverdrive));
+
+                // Append power indicator
+                result = result + " §e⚡" + power;
+
+                yield result;
+            }
             case SNIPER -> {
                 boolean isScoped = Core.playerEffectService.hasSource(playerId, EffectSource.SNIPER_SCOPED);
                 yield out.replace("Scope", "Scope" + toggleDot(isScoped));

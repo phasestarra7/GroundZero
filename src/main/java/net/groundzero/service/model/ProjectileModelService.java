@@ -3,6 +3,7 @@ package net.groundzero.service.model;
 import net.groundzero.app.Core;
 import net.groundzero.service.GameService;
 import net.groundzero.service.model.handler.AssaultModelHandler;
+import net.groundzero.service.model.handler.AutoModelHandler;
 import net.groundzero.service.model.handler.SniperModelHandler;
 import net.groundzero.service.tick.TickBus;
 import org.bukkit.Location;
@@ -85,7 +86,7 @@ public final class ProjectileModelService implements TickBus.Tickable, GameServi
 
         // Register all handlers
         registerHandler(new AssaultModelHandler());
-//        registerHandler(new AutoModelHandler());
+        registerHandler(new AutoModelHandler());
         registerHandler(new SniperModelHandler());
 //        registerHandler(new rpgModelHandler());
 //        registerHandler(new concussiveModelHandler());

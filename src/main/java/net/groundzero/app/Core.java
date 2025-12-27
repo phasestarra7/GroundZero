@@ -57,6 +57,7 @@ public final class Core {
     public static ReloadService reloadService;
     public static RecoilService recoilService;
     public static ProjectileModelService projectileModelService;
+    public static AutoFireService autoFireService;
 
     public static ItemRegistry itemRegistry;
 
@@ -100,6 +101,7 @@ public final class Core {
         reloadService = new ReloadService();
         recoilService = new RecoilService();
         projectileModelService = new ProjectileModelService();
+        autoFireService = new AutoFireService();
 
         itemRegistry = new ItemRegistry();
         itemRegistry.init();
@@ -124,5 +126,6 @@ public final class Core {
         gameServices.add(cooldownService);
         gameServices.add(reloadService);
         gameServices.add(projectileModelService);
+        gameServices.add(autoFireService);
     }
 }

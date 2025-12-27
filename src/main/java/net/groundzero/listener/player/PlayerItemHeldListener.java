@@ -4,6 +4,7 @@ import net.groundzero.app.Core;
 import net.groundzero.item.ItemType;
 import net.groundzero.listener.BaseListener;
 import net.groundzero.service.effect.EffectSource;
+import net.groundzero.service.player.PlayerGameState;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -41,6 +42,15 @@ public final class PlayerItemHeldListener extends BaseListener implements Listen
             // Remove ADS if not holding Assault
             if (newType != ItemType.ASSAULT) {
                 Core.playerEffectService.removeSource(playerId, EffectSource.ASSAULT_ADS);
+            }
+
+            // Cancel Auto Rifle states if not holding Auto
+            if (newType != ItemType.AUTO) {
+                Core.autoFireService.cancelAutoFire(playerId);
+                PlayerGameState state = Core.playerStates.get(playerId);
+                if (state != null) {
+                    state.setAutoOverdrive(false);
+                }
             }
 
             // Remove Zoom if not holding Sniper

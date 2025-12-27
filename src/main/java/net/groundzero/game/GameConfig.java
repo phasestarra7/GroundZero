@@ -191,18 +191,20 @@ public final class GameConfig {
     public int assaultRecoilRecoveryTicks = 4;   // ticks to recover
 
     /* ===== Auto Rifle ===== */
-    public double autoDamage = 3.0;
-    public double autoProjectileSpeed = 4.5;
-    public double autoSpread = 0.04;
+    public double autoDamage = 5.0;
+    public double autoProjectileSpeed = 5.0;
+    public double autoSpread = 0.0025;            // * n
     public int autoMagazineSize = 60;
-    public int autoReloadTicks = 80;             // 4 seconds
-    public double autoRecoilPitch = 0.8;
-    public double autoRecoilYaw = 1.2;
-    public int autoRecoilRecoveryTicks = 1;
+    public int autoReloadTicks = 100;             // 4 seconds
+    public double autoRecoilPitch = 0.075;        // * n
+    public double autoRecoilYaw = 0.05;           // * n
+    public int autoRecoilRecoveryTicks = 2;
 
     public int autoOverloadGainPerTick = 5;
     public int autoOverloadLossPerTick = 1;
     public int autoOverloadConsumePerShot = 5;
+    public int autoOverloadMax = 1000;
+    public int autoFireStartDelayTicks = 10;
     public int autoFireIntervalTicks = 2;
 
     /* ===== Sniper Rifle ===== */

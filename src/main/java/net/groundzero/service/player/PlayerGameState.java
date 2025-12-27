@@ -42,29 +42,26 @@ public final class PlayerGameState {
     /* ===== Assault Rifle ===== */
     private int assaultMagazine = 0;
     private int assaultReserve = 0;
-    private int assaultCooldownEndTick = 0;
     private int assaultReloadEndTick = 0;
     // ADS mode managed in PlayerEffectService
 
     /* ===== Auto Rifle ===== */
     private int autoMagazine = 0;
     private int autoReserve = 0;
-    private int autoCooldownEndTick = 0;
     private int autoReloadEndTick = 0;
     private boolean autoFireMode = false;
+    private boolean autoOverdrive = false;
     private int autoOverdriveStack = 0;
 
     /* ===== Sniper Rifle ===== */
     private int sniperMagazine = 0;
     private int sniperReserve = 0;
-    private int sniperCooldownEndTick = 0;
     private int sniperReloadEndTick = 0;
     // Scope mode managed in PlayerEffectService
 
     /* ===== RPG ===== */
     private int rpgMagazine = 0;
     private int rpgReserve = 0;
-    private int rpgCooldownEndTick = 0;
     private int rpgReloadEndTick = 0;
 
 
@@ -234,6 +231,15 @@ public final class PlayerGameState {
         return autoReloadEndTick > 0 && currentTick < autoReloadEndTick;
     }
 
+    public boolean isAutoFireMode() { return autoFireMode; }
+    public void setAutoFireMode(boolean mode) { this.autoFireMode = mode; }
+
+    public boolean isAutoOverdrive() { return autoOverdrive; }
+    public void setAutoOverdrive(boolean overdrive) { this.autoOverdrive = overdrive; }
+
+    public int getAutoOverdriveStack() { return autoOverdriveStack; }
+    public void setAutoOverdriveStack(int stack) { this.autoOverdriveStack = Math.max(0, stack); }
+
     /* =========================================================
        Sniper Rifle
        ========================================================= */
@@ -275,11 +281,29 @@ public final class PlayerGameState {
     /**
      * Reset all weapon ammo state.
      */
-    public void resetAmmo() {
+    public void resetRifles() {
         // Assault
         this.assaultMagazine = 0;
         this.assaultReserve = 0;
         this.assaultReloadEndTick = 0;
+
+        // Auto
+        this.autoMagazine = 0;
+        this.autoReserve = 0;
+        this.autoReloadEndTick = 0;
+        this.autoFireMode = false;
+        this.autoOverdrive = false;
+        this.autoOverdriveStack = 0;
+
+        // Sniper
+        this.sniperMagazine = 0;
+        this.sniperReserve = 0;
+        this.sniperReloadEndTick = 0;
+
+        // RPG
+        this.rpgMagazine = 0;
+        this.rpgReserve = 0;
+        this.rpgReloadEndTick = 0;
     }
 
     /**
@@ -289,7 +313,7 @@ public final class PlayerGameState {
     public void resetAll() {
         resetCombat();
         resetIdle();
-        resetAmmo();
+        resetRifles();
         hotbarSwapped = false;
         effectSources.clear();
         jumpBlocked = false;
