@@ -16,8 +16,9 @@ import java.util.UUID;
 
 /**
  * Handles hotbar slot changes.
- * - Updates ActionBar immediately
  * - Removes weapon-specific effect sources (ADS, Zoom) when switching away
+ *
+ * Note: ActionBar is updated by ActionBarService every tick, no immediate update needed.
  */
 public final class PlayerItemHeldListener extends BaseListener implements Listener {
 
@@ -31,9 +32,6 @@ public final class PlayerItemHeldListener extends BaseListener implements Listen
         // 1tick delay - getItemInMainHand() returns previous item during event
         Core.schedulers.runLater(() -> {
             if (!player.isOnline() || !Core.session.state().isIngame()) return;
-
-            // Update ActionBar
-            Core.actionBarService.updateImmediately(playerId);
 
             // Get new item after slot change
             ItemStack newItem = player.getInventory().getItemInMainHand();

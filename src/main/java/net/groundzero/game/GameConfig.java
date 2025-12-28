@@ -33,6 +33,11 @@ public final class GameConfig {
     // time player stays in spectator before respawn (5 seconds)
     public int respawnDelayTicks = 5 * 20;
 
+    /* ===== ui periods ===== */
+    public int scoreboardUpdatePeriodTicks = 1;
+    public int actionBarUpdatePeriodTicks = 1;
+    public int actionBarForceUpdatePeriodTicks = 10;
+
     /* ===== base resources ===== */
     public double basePlasma = 0.0;
     public double baseIncomePerSecond = 10.0;
@@ -50,9 +55,6 @@ public final class GameConfig {
     public int campPenaltyIntervalTicks = 60 * 20; // 60 seconds (1 minute)
     public double campPenaltyPercent = 0.05;
     public int campMaxStacks = 3;
-
-    /* ===== actionbar ===== */
-    public int actionBarIntervalTicks = 10;
 
     /* ===== item price ===== */
     public int assaultPrice = 100;
@@ -143,11 +145,11 @@ public final class GameConfig {
 
     /* ===== item cooldown ===== */
     public int assaultCooldownTicksL = 0;
-    public int assaultCooldownTicksR = 0;
-    public int autoCooldownTicksL = 0;
-    public int autoCooldownTicksR = 0;
-    public int sniperCooldownTicksL = 50;
-    public int sniperCooldownTicksR = 0;
+    public int assaultCooldownTicksR = 20;
+    public int autoCooldownTicksL = 20;
+    public int autoCooldownTicksR = 20;
+    public int sniperCooldownTicksL = 100;
+    public int sniperCooldownTicksR = 20;
     public int rpgCooldownTicksL = 0;
     public int rpgCooldownTicksR = 50;
     public int concussiveCooldownTicksR = 20;
@@ -186,24 +188,24 @@ public final class GameConfig {
     public double assaultSpread = 0.05;
     public int assaultMagazineSize = 30;
     public int assaultReloadTicks = 60;          // 3 seconds
-    public double assaultRecoilPitch = 1.5;      // upward kick
-    public double assaultRecoilYaw = 1;        // left/right range
+    public double assaultRecoilPitch = 0.75;      // upward kick
+    public double assaultRecoilYaw = 0.5;        // left/right range
     public int assaultRecoilRecoveryTicks = 4;   // ticks to recover
 
     /* ===== Auto Rifle ===== */
     public double autoDamage = 5.0;
     public double autoProjectileSpeed = 5.0;
-    public double autoSpread = 0.0025;            // * n
+    public double autoSpread = 0.0025;            // x #
     public int autoMagazineSize = 60;
-    public int autoReloadTicks = 100;             // 4 seconds
-    public double autoRecoilPitch = 0.075;        // * n
-    public double autoRecoilYaw = 0.05;           // * n
+    public int autoReloadTicks = 100;             // 5 seconds
+    public double autoRecoilPitch = 0.075;        // x #
+    public double autoRecoilYaw = 0.05;           // x #
     public int autoRecoilRecoveryTicks = 2;
 
     public int autoOverloadGainPerTick = 5;
     public int autoOverloadLossPerTick = 1;
     public int autoOverloadConsumePerShot = 5;
-    public int autoOverloadMax = 1000;
+    public int autoOverloadMax = 999;
     public int autoFireStartDelayTicks = 10;
     public int autoFireIntervalTicks = 2;
 

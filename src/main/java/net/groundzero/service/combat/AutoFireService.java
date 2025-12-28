@@ -133,13 +133,15 @@ public final class AutoFireService implements TickBus.Tickable, GameService {
 
     private void handleAutoFire(Player player, UUID playerId, PlayerGameState state, int currentTick) {
         // Check if Overdrive is ON - cannot fire while charging
+        /*
         if (state.isAutoOverdrive()) {
             stopAutoFireInternal(playerId, state);
             Core.notifier.messageOnly(player, true, "Cannot fire while Overdrive is active!");
             Core.notifier.sound(player, Sound.BLOCK_DISPENSER_FAIL, Notifier.PitchLevel.LOW);
-            Core.actionBarService.updateImmediately(playerId);
             return;
         }
+        */
+        // now it just deactivates overdrive for UX, so unnecessary
 
         // Check if we've reached the start delay
         Integer startTick = autoFireStartTick.get(playerId);
@@ -165,7 +167,6 @@ public final class AutoFireService implements TickBus.Tickable, GameService {
             stopAutoFireInternal(playerId, state);
             Core.notifier.messageOnly(player, true, "Out of power!");
             Core.notifier.sound(player, Sound.BLOCK_DISPENSER_FAIL, Notifier.PitchLevel.LOW);
-            Core.actionBarService.updateImmediately(playerId);
             return;
         }
 
@@ -173,7 +174,6 @@ public final class AutoFireService implements TickBus.Tickable, GameService {
         if (Core.reloadService.isReloading(playerId, WEAPON)) {
             // Stop auto-fire when reloading
             stopAutoFireInternal(playerId, state);
-            Core.actionBarService.updateImmediately(playerId);
             return;
         }
 
@@ -186,10 +186,8 @@ public final class AutoFireService implements TickBus.Tickable, GameService {
             if (reserve > 0) {
                 Core.reloadService.startReload(player, WEAPON);
             } else {
-                Core.notifier.messageOnly(player, true, "Out of ammo!");
                 Core.notifier.sound(player, Sound.BLOCK_DISPENSER_FAIL, Notifier.PitchLevel.LOW);
             }
-            Core.actionBarService.updateImmediately(playerId);
             return;
         }
 
@@ -214,9 +212,6 @@ public final class AutoFireService implements TickBus.Tickable, GameService {
             // Update last fire tick
             lastFireTick.put(playerId, currentTick);
 
-            // Update ActionBar
-            Core.actionBarService.updateImmediately(playerId);
-
             // Check if magazine now empty - stop and auto-reload
             if (Core.reloadService.getMagazine(playerId, WEAPON) <= 0) {
                 stopAutoFireInternal(playerId, state);
@@ -227,7 +222,6 @@ public final class AutoFireService implements TickBus.Tickable, GameService {
                         }
                     }, 1L);
                 }
-                Core.actionBarService.updateImmediately(playerId);
             }
         }
     }

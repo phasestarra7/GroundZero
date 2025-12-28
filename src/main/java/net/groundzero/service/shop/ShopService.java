@@ -26,6 +26,8 @@ import java.util.UUID;
  * Ammo Purchase:
  * - If magazine AND reserve are both 0: add to magazine (immediate use)
  * - Otherwise: add to reserve (requires reload)
+ *
+ * Note: ActionBar is updated by ActionBarService every tick, no immediate update needed.
  */
 public final class ShopService implements GameService {
 
@@ -145,9 +147,6 @@ public final class ShopService implements GameService {
             // Add to reserve (requires reload to use)
             Core.reloadService.addReserve(playerId, weapon, ammoAmount);
         }
-
-        // Update ActionBar to show new ammo
-        Core.actionBarService.updateImmediately(playerId);
 
         // Notify
         onAmmoPurchaseSuccess(player, type, price, incomeAdd, ammoAmount);

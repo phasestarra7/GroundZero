@@ -360,6 +360,9 @@ public final class ItemTexts {
             if (isReloading) {
                 // Show reloading indicator with current ammo state
                 base += " §c[RELOADING]§f " + magazine + "/" + reserve;
+            } else if (magazine == 0 && reserve == 0) {
+                // Empty ammo display: <red>0/0</red>
+                base += " §e[Ammo] §c0/0";
             } else {
                 // Normal ammo display: magazine/reserve
                 base += " §e[Ammo]§f " + magazine + "/" + reserve;

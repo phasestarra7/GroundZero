@@ -37,8 +37,8 @@ public enum DeathCause {
     // ========== Missiles ==========
     MISSILE_SIMPLE(AttackerType.PLAYER),
     MISSILE_POISON(AttackerType.PLAYER),
-    MISSILE_BUNKER_BUSTER(AttackerType.PLAYER),
-    MISSILE_HIGH_EXPLOSIVE(AttackerType.PLAYER),
+    MISSILE_BUNKER(AttackerType.PLAYER),
+    MISSILE_HIGHEXP(AttackerType.PLAYER),
     MISSILE_NUCLEAR(AttackerType.PLAYER),
     MISSILE_ABM(AttackerType.PLAYER),
 

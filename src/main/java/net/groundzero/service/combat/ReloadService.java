@@ -21,6 +21,8 @@ import java.util.UUID;
  * 1. startReload() - Set reloadEndTick, play sound, update ActionBar
  * 2. Wait reloadTicks
  * 3. completeReload() - Transfer ammo, clear reloadEndTick, play sound
+ *
+ * Note: ActionBar is updated by ActionBarService every tick, no immediate update needed.
  */
 public final class ReloadService implements GameService {
 
@@ -133,7 +135,6 @@ public final class ReloadService implements GameService {
 
         // Feedback
         Core.notifier.sound(player, Sound.ITEM_ARMOR_EQUIP_IRON, Notifier.PitchLevel.MID);
-        Core.actionBarService.updateImmediately(playerId);
 
         // Schedule completion
         final int expectedEndTick = reloadEndTick;
@@ -196,7 +197,6 @@ public final class ReloadService implements GameService {
         Player player = Bukkit.getPlayer(playerId);
         if (player != null && player.isOnline()) {
             Core.notifier.sound(player, Sound.BLOCK_IRON_DOOR_CLOSE, Notifier.PitchLevel.HIGH);
-            Core.actionBarService.updateImmediately(playerId);
         }
     }
 

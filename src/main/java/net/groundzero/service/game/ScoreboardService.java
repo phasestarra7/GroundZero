@@ -22,7 +22,7 @@ public final class ScoreboardService implements TickBus.Tickable, GameService {
     private final Map<UUID, Scoreboard> boards = new HashMap<>();
     private final Map<UUID, Map<String, Team>> boardTeams = new HashMap<>();
 
-    private static final int UI_UPDATE_PERIOD_TICKS = 1;
+    private static final int UI_UPDATE_PERIOD_TICKS = Core.gameConfig.scoreboardUpdatePeriodTicks;
     private int lastUiUpdateTick = 0;
 
     private boolean running = false;

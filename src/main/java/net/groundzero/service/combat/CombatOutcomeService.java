@@ -179,9 +179,9 @@ public final class CombatOutcomeService {
                     "&a" + victimName + " &fwas hit by &a" + attackerName + "&f's missile";
             case MISSILE_POISON ->
                     "&a" + victimName + " &fwas poisoned by &a" + attackerName + "&f's chemical missile";
-            case MISSILE_BUNKER_BUSTER ->
+            case MISSILE_BUNKER ->
                     "&a" + victimName + " &fwas crushed by &a" + attackerName + "&f's bunker buster";
-            case MISSILE_HIGH_EXPLOSIVE ->
+            case MISSILE_HIGHEXP ->
                     "&a" + victimName + " &fwas vaporized by &a" + attackerName + "&f's HE missile";
             case MISSILE_NUCLEAR ->
                     "&a" + victimName + " &fwas nuked by &a" + attackerName;

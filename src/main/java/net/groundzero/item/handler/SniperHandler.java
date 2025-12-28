@@ -20,14 +20,19 @@ import java.util.UUID;
  * Sniper Rifle handler.
  *
  * Actions:
- * - Left Click: Fire (should be scoped)
+ * - Left Click: Fire (must be scoped)
  * - Right Click: Toggle scope
  *
  * Scope:
  * - Slowness + Jump block (via PlayerEffectService)
+ *
+ * Feedback:
+ * - Cooldown shown in ActionBar (e.g., "[L] 2.5")
+ * - "You should be scoped to fire!" message kept (unique mechanic needs explanation)
+ * - Other feedback via sound only
  */
 
-public class SniperHandler implements ItemHandler {
+public final class SniperHandler implements ItemHandler {
 
     private static final WeaponType WEAPON = WeaponType.SNIPER;
 
@@ -37,7 +42,6 @@ public class SniperHandler implements ItemHandler {
 
         // 0. Check cooldown
         if (Core.cooldownService.isOnCooldown(playerId, ItemType.SNIPER, true)) {
-            Core.notifier.messageOnly(player, true, "Weapon on cooldown");
             Core.notifier.sound(player, Sound.BLOCK_DISPENSER_FAIL, Notifier.PitchLevel.LOW);
             return true;
         }
@@ -52,38 +56,33 @@ public class SniperHandler implements ItemHandler {
 
         // 2. Check if currently reloading
         if (Core.reloadService.isReloading(playerId, WEAPON)) {
-            Core.notifier.messageOnly(player, true, "Reloading...");
             Core.notifier.sound(player, Sound.BLOCK_DISPENSER_FAIL, Notifier.PitchLevel.LOW);
             return true;
         }
 
         // 3. Check magazine
-        // this won't happen actually though, if last ammo is used, auto reload
-        // and if both magazine and reserve is empty, ammo is directly passed to magazine not reserve
         int magazine = Core.reloadService.getMagazine(playerId, WEAPON);
         if (magazine <= 0) {
-            // Try to reload if reserve available
             int reserve = Core.reloadService.getReserve(playerId, WEAPON);
             if (reserve > 0) {
                 Core.reloadService.startReload(player, WEAPON);
             } else {
-                Core.notifier.messageOnly(player, true, "Out of ammo!");
-                Core.notifier.sound(player, Sound.BLOCK_DISPENSER_FAIL, Notifier.PitchLevel.LOW);
+                // Empty click sound
+                Core.notifier.sound(player, Sound.UI_BUTTON_CLICK, Notifier.PitchLevel.LOW);
             }
             return true;
         }
 
         // 4. Consume ammo
         if (!Core.reloadService.consumeMagazine(playerId, WEAPON)) {
-            Core.notifier.messageOnly(player, true, "Out of ammo!");
-            Core.notifier.sound(player, Sound.BLOCK_DISPENSER_FAIL, Notifier.PitchLevel.LOW);
+            Core.notifier.sound(player, Sound.UI_BUTTON_CLICK, Notifier.PitchLevel.LOW);
             return true;
         }
 
         // 5. Fire projectile
         fireProjectile(player);
 
-        // 6. Apply recoil (explicit values from config)
+        // 6. Apply recoil
         double recoilPitch = Core.gameConfig.sniperRecoilPitch;
         double recoilYaw = Core.gameConfig.sniperRecoilYaw;
         int recoveryTicks = Core.gameConfig.sniperRecoilRecoveryTicks;
@@ -92,10 +91,7 @@ public class SniperHandler implements ItemHandler {
         // 7. Start cooldown
         Core.cooldownService.startCooldown(playerId, ItemType.SNIPER, true, Core.gameConfig.sniperCooldownTicksL);
 
-        // 8. Update ActionBar
-        Core.actionBarService.updateImmediately(playerId);
-
-        // 9. Auto-reload if magazine empty
+        // 8. Auto-reload if magazine empty
         if (Core.reloadService.getMagazine(playerId, WEAPON) <= 0) {
             if (Core.reloadService.getReserve(playerId, WEAPON) > 0) {
                 Core.schedulers.runLater(() -> {
@@ -113,29 +109,24 @@ public class SniperHandler implements ItemHandler {
     public boolean onRightClick(Player player, ItemStack item) {
         UUID playerId = player.getUniqueId();
 
-        // 0. Check cooldown (sniper scope has 0 cooldown - placeholder for pattern)
-        // if (Core.cooldownService.isOnCooldown(playerId, ItemType.SNIPER, false)) {
-        //     Core.notifier.messageOnly(player, true, "Scope on cooldown");
-        //     Core.notifier.sound(player, Sound.BLOCK_DISPENSER_FAIL, Notifier.PitchLevel.LOW);
-        //     return true;
-        // }
+        // 0. Check cooldown
+        if (Core.cooldownService.isOnCooldown(playerId, ItemType.SNIPER, false)) {
+            Core.notifier.sound(player, Sound.BLOCK_DISPENSER_FAIL, Notifier.PitchLevel.LOW);
+            return true;
+        }
 
-        // 1. Toggle scope
+        // Toggle scope
         if (Core.playerEffectService.hasSource(playerId, EffectSource.SNIPER_SCOPED)) {
-            // Scope off
             Core.playerEffectService.removeSource(playerId, EffectSource.SNIPER_SCOPED);
             Core.notifier.sound(player, Sound.ITEM_SPYGLASS_STOP_USING, Notifier.PitchLevel.MID);
         } else {
-            // Scope on
             Core.playerEffectService.addSource(playerId, EffectSource.SNIPER_SCOPED);
             Core.notifier.sound(player, Sound.ITEM_SPYGLASS_USE, Notifier.PitchLevel.MID);
         }
 
-        // 2. Start cooldown (sniper scope has 0 cooldown - no effect)
-        // Core.cooldownService.startCooldown(playerId, ItemType.SNIPER, false, Core.gameConfig.sniperCooldownTicksR);
+        // 2. Start cooldown
+        Core.cooldownService.startCooldown(playerId, ItemType.SNIPER, false, Core.gameConfig.sniperCooldownTicksR);
 
-        // 3. Update ActionBar
-        Core.actionBarService.updateImmediately(player.getUniqueId());
         return true;
     }
 
@@ -181,10 +172,7 @@ public class SniperHandler implements ItemHandler {
 
         // Attach visual model
         if (arrow != null) {
-            // Make arrow invisible (model will be visible instead)
             arrow.setVisibleByDefault(false);
-
-            // Attach bullet model
             Core.projectileModelService.attachModel(arrow, ModelType.SNIPER_BULLET);
         }
 

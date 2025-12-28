@@ -1,6 +1,7 @@
 package net.groundzero.item.handler;
 
 import net.groundzero.app.Core;
+import net.groundzero.item.ItemType;
 import net.groundzero.item.WeaponType;
 import net.groundzero.service.combat.ProjectileService;
 import net.groundzero.service.effect.EffectSource;
@@ -26,6 +27,10 @@ import java.util.UUID;
  * - Slowness + Jump block (via PlayerEffectService)
  * - Zero spread
  * - Reduced recoil (50%)
+ *
+ * Feedback:
+ * - All feedback via sound only (no chat messages)
+ * - ActionBar updated by ActionBarService every tick
  */
 public final class AssaultHandler implements ItemHandler {
 
@@ -35,40 +40,34 @@ public final class AssaultHandler implements ItemHandler {
     public boolean onLeftClick(Player player, ItemStack item) {
         UUID playerId = player.getUniqueId();
 
-        // 0. Check cooldown (assault has 0 cooldown - placeholder for pattern)
-        // if (Core.cooldownService.isOnCooldown(playerId, ItemType.ASSAULT, true)) {
-        //     Core.notifier.messageOnly(player, true, "Weapon on cooldown");
-        //     Core.notifier.sound(player, Sound.BLOCK_DISPENSER_FAIL, Notifier.PitchLevel.LOW);
-        //     return true;
-        // }
+        // 0. Check cooldown
+        if (Core.cooldownService.isOnCooldown(playerId, ItemType.ASSAULT, true)) {
+            Core.notifier.sound(player, Sound.BLOCK_DISPENSER_FAIL, Notifier.PitchLevel.LOW);
+            return true;
+        }
 
         // 1. Check if currently reloading
         if (Core.reloadService.isReloading(playerId, WEAPON)) {
-            Core.notifier.messageOnly(player, true, "Reloading...");
             Core.notifier.sound(player, Sound.BLOCK_DISPENSER_FAIL, Notifier.PitchLevel.LOW);
             return true;
         }
 
         // 2. Check magazine
-        // this won't happen actually though, if last ammo is used, auto reload
-        // and if both magazine and reserve is empty, ammo is directly passed to magazine not reserve
         int magazine = Core.reloadService.getMagazine(playerId, WEAPON);
         if (magazine <= 0) {
-            // Try to reload if reserve available
             int reserve = Core.reloadService.getReserve(playerId, WEAPON);
             if (reserve > 0) {
                 Core.reloadService.startReload(player, WEAPON);
             } else {
-                Core.notifier.messageOnly(player, true, "Out of ammo!");
-                Core.notifier.sound(player, Sound.BLOCK_DISPENSER_FAIL, Notifier.PitchLevel.LOW);
+                // Empty click sound
+                Core.notifier.sound(player, Sound.UI_BUTTON_CLICK, Notifier.PitchLevel.LOW);
             }
             return true;
         }
 
         // 3. Consume ammo
         if (!Core.reloadService.consumeMagazine(playerId, WEAPON)) {
-            Core.notifier.messageOnly(player, true, "Out of ammo!");
-            Core.notifier.sound(player, Sound.BLOCK_DISPENSER_FAIL, Notifier.PitchLevel.LOW);
+            Core.notifier.sound(player, Sound.UI_BUTTON_CLICK, Notifier.PitchLevel.LOW);
             return true;
         }
 
@@ -78,26 +77,22 @@ public final class AssaultHandler implements ItemHandler {
         // 5. Fire projectile
         fireProjectile(player, isADS);
 
-        // 6. Apply recoil (explicit values from config)
+        // 6. Apply recoil
         double recoilPitch = Core.gameConfig.assaultRecoilPitch;
         double recoilYaw = Core.gameConfig.assaultRecoilYaw;
         int recoveryTicks = Core.gameConfig.assaultRecoilRecoveryTicks;
 
         if (isADS) {
-            // 50% recoil reduction in ADS mode
             recoilPitch *= 0.5;
             recoilYaw *= 0.5;
         }
 
         Core.recoilService.applyRecoil(player, recoilPitch, recoilYaw, recoveryTicks);
 
-        // 7. Start cooldown (assault has 0 cooldown - no effect)
-        // Core.cooldownService.startCooldown(playerId, ItemType.ASSAULT, true, Core.gameConfig.assaultCooldownTicksL);
+        // 7. Start cooldown
+        Core.cooldownService.startCooldown(playerId, ItemType.ASSAULT, true, Core.gameConfig.assaultCooldownTicksL);
 
-        // 8. Update ActionBar
-        Core.actionBarService.updateImmediately(playerId);
-
-        // 9. Auto-reload if magazine empty
+        // 8. Auto-reload if magazine empty
         if (Core.reloadService.getMagazine(playerId, WEAPON) <= 0) {
             if (Core.reloadService.getReserve(playerId, WEAPON) > 0) {
                 Core.schedulers.runLater(() -> {
@@ -115,29 +110,24 @@ public final class AssaultHandler implements ItemHandler {
     public boolean onRightClick(Player player, ItemStack item) {
         UUID playerId = player.getUniqueId();
 
-        // 0. Check cooldown (assault ADS has 0 cooldown - placeholder for pattern)
-        // if (Core.cooldownService.isOnCooldown(playerId, ItemType.ASSAULT, false)) {
-        //     Core.notifier.messageOnly(player, true, "ADS mode on cooldown");
-        //     Core.notifier.sound(player, Sound.BLOCK_DISPENSER_FAIL, Notifier.PitchLevel.LOW);
-        //     return true;
-        // }
+        // 0. Check cooldown
+        if (Core.cooldownService.isOnCooldown(playerId, ItemType.ASSAULT, false)) {
+            Core.notifier.sound(player, Sound.BLOCK_DISPENSER_FAIL, Notifier.PitchLevel.LOW);
+            return true;
+        }
 
         // 1. Toggle ADS
         if (Core.playerEffectService.hasSource(playerId, EffectSource.ASSAULT_ADS)) {
-            // Turn off ADS
             Core.playerEffectService.removeSource(playerId, EffectSource.ASSAULT_ADS);
             Core.notifier.sound(player, Sound.ITEM_SPYGLASS_STOP_USING, Notifier.PitchLevel.MID);
         } else {
-            // Turn on ADS
             Core.playerEffectService.addSource(playerId, EffectSource.ASSAULT_ADS);
             Core.notifier.sound(player, Sound.ITEM_SPYGLASS_USE, Notifier.PitchLevel.MID);
         }
 
-        // 2. Start cooldown (assault ADS has 0 cooldown - no effect)
-        // Core.cooldownService.startCooldown(playerId, ItemType.ASSAULT, false, Core.gameConfig.assaultCooldownTicksR);
+        // 2. Start cooldown
+        Core.cooldownService.startCooldown(playerId, ItemType.ASSAULT, false, Core.gameConfig.assaultCooldownTicksR);
 
-        // 3. Update ActionBar
-        Core.actionBarService.updateImmediately(player.getUniqueId());
         return true;
     }
 
@@ -183,10 +173,7 @@ public final class AssaultHandler implements ItemHandler {
 
         // Attach visual model
         if (arrow != null) {
-            // Make arrow invisible (model will be visible instead)
             arrow.setVisibleByDefault(false);
-
-            // Attach bullet model
             Core.projectileModelService.attachModel(arrow, ModelType.ASSAULT_BULLET);
         }
 

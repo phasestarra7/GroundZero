@@ -212,8 +212,8 @@ public final class CombatListener extends BaseListener implements Listener {
         // Missiles
         if (lower.contains("missile_simple")) return DeathCause.MISSILE_SIMPLE;
         if (lower.contains("missile_poison")) return DeathCause.MISSILE_POISON;
-        if (lower.contains("missile_bunker")) return DeathCause.MISSILE_BUNKER_BUSTER;
-        if (lower.contains("missile_highexp")) return DeathCause.MISSILE_HIGH_EXPLOSIVE;
+        if (lower.contains("missile_bunker")) return DeathCause.MISSILE_BUNKER;
+        if (lower.contains("missile_highexp")) return DeathCause.MISSILE_HIGHEXP;
         if (lower.contains("missile_nuclear")) return DeathCause.MISSILE_NUCLEAR;
         if (lower.contains("missile_abm")) return DeathCause.MISSILE_ABM;
 
