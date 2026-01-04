@@ -11,7 +11,7 @@ import java.util.UUID;
  * Universal cooldown service for all items (except Console).
  *
  * Manages cooldown state for:
- * - Weapons (Assault, Auto, Sniper, RPG, Concussive, Smoke)
+ * - Weapons (Assault, Auto, Sniper, RPG, Stun, Smoke)
  * - Support items (Medkit, Blocks, Bridge, Bunker, AntiExp, Pearl)
  * - Aerial support (Simple, Arrow, Cluster, Spreader, Carpet, Hack)
  * - Missiles (Simple, Poison, Bunker, HighExp, Nuclear, ABM)

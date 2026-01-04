@@ -43,8 +43,8 @@ public final class ItemRegistry {
         registerHandler(ItemType.ASSAULT, new AssaultHandler());
         registerHandler(ItemType.AUTO, new AutoHandler());
         registerHandler(ItemType.SNIPER, new SniperHandler());
-//        registerHandler(ItemType.RPG, new RpgHandler());
-//        registerHandler(ItemType.CONCUSSIVE, new ConcussiveHandler());
+        registerHandler(ItemType.RPG, new RpgHandler());
+//        registerHandler(ItemType.STUN, new StunHandler());
 //        registerHandler(ItemType.SMOKE, new SmokeHandler());
 
         // Supportive

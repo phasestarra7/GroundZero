@@ -35,7 +35,6 @@ public final class PlayerLifecycleListener extends BaseListener implements Liste
     @EventHandler(ignoreCancelled = true)
     public void onDeath(PlayerDeathEvent event) {
         Player p = event.getEntity();
-        String vanillaMsg = event.getDeathMessage(); // original vanilla death message
 
         // Prevent vanilla from also broadcasting its own death message.
         event.setDeathMessage(null);
@@ -43,11 +42,8 @@ public final class PlayerLifecycleListener extends BaseListener implements Liste
         if (Core.session.state().isPregame()) {
             Core.playerService.onDeathPregame(p);
         } else if (Core.session.state().isIngame()) {
-            // Score / kill credit + custom death message
-            Core.combatOutcomeService.handlePlayerDeath(p, vanillaMsg);
-            // Respawn / spectator logic
             Core.playerService.onDeathIngame(p);
-        } else { // idle/ended
+        } else {
             Core.playerService.onDeathIdle(p);
         }
     }

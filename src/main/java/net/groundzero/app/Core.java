@@ -125,6 +125,7 @@ public final class Core {
         gameServices.add(playerEffectService);
         gameServices.add(cooldownService);
         gameServices.add(reloadService);
+        gameServices.add(recoilService);
         gameServices.add(projectileModelService);
         gameServices.add(autoFireService);
     }

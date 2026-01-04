@@ -16,7 +16,7 @@ public enum ItemType {
     AUTO("gz_auto", 1002, Category.WEAPON, "Auto Rifle"),
     SNIPER("gz_sniper", 1003, Category.WEAPON, "Sniper Rifle"),
     RPG("gz_rpg", 1004, Category.WEAPON, "RPG"),
-    CONCUSSIVE("gz_concussive", 1005, Category.WEAPON, "Concussive Shell"),
+    STUN("gz_stun", 1005, Category.WEAPON, "Stun Grenade"),
     SMOKE("gz_smoke", 1006, Category.WEAPON, "Smoke Grenade"),
 
     /* ===== Support (6) ===== */

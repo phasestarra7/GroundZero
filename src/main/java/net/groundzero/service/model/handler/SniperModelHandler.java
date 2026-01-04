@@ -11,7 +11,13 @@ import org.bukkit.entity.Entity;
 import org.bukkit.util.Transformation;
 import org.bukkit.util.Vector;
 
-public class SniperModelHandler implements ModelHandler {
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * Sniper Rifle bullet - single part model.
+ */
+public final class SniperModelHandler implements ModelHandler {
 
     private static final float SCALE_X = 0.15f;
     private static final float SCALE_Y = 0.15f;
@@ -24,45 +30,43 @@ public class SniperModelHandler implements ModelHandler {
     }
 
     @Override
-    public Display createModel(Entity anchor) {
-        if (anchor == null || anchor.getWorld() == null) return null;
+    public List<Display> createModels(Entity anchor) {
+        if (anchor == null || anchor.getWorld() == null) return List.of();
 
-        return anchor.getWorld().spawn(anchor.getLocation(), BlockDisplay.class, display -> {
-            display.setBlock(MATERIAL.createBlockData());
+        List<Display> displays = new ArrayList<>();
 
-            Transformation transform = ModelTransformHelper.createCentered(
+        BlockDisplay body = anchor.getWorld().spawn(anchor.getLocation(), BlockDisplay.class, d -> {
+            d.setBlock(MATERIAL.createBlockData());
+            d.setTransformation(ModelTransformHelper.createCentered(
                     anchor.getVelocity(), SCALE_X, SCALE_Y, SCALE_Z
-            );
-            display.setTransformation(transform);
-
-            display.setBrightness(new Display.Brightness(15, 15));
-            display.setViewRange(2.5f);
-            display.setShadowRadius(0f);
-            display.setShadowStrength(0f);
-            display.setInterpolationDuration(1);
-            display.setInterpolationDelay(0);
+            ));
+            ModelTransformHelper.applySettings(d);
         });
+        displays.add(body);
+
+        return displays;
     }
 
     @Override
-    public void updateRotation(Display display, Vector velocity) {
-        if (!(display instanceof BlockDisplay bd)) return;
+    public void updateRotation(List<Display> displays, Vector velocity) {
+        if (displays.isEmpty()) return;
         if (velocity == null || velocity.lengthSquared() < 0.001) return;
 
-        Transformation transform = ModelTransformHelper.createCentered(velocity, SCALE_X, SCALE_Y, SCALE_Z);
-        bd.setTransformation(transform);
-        bd.setInterpolationDelay(0);
+        if (displays.get(0) instanceof BlockDisplay bd) {
+            Transformation t = ModelTransformHelper.createCentered(velocity, SCALE_X, SCALE_Y, SCALE_Z);
+            bd.setTransformation(t);
+            bd.setInterpolationDelay(0);
+        }
     }
 
     @Override
-    public void onTick(Display display, Entity anchor, int ticksAlive) {
+    public void onTick(List<Display> displays, Entity anchor, int ticksAlive) {
         if (anchor == null || anchor.getWorld() == null) return;
 
-        // Trail particle every tick
         anchor.getWorld().spawnParticle(
                 Particle.SMOKE,
                 anchor.getLocation(),
-                1, 0, 0, 0, 0, null, true // count, offset3, speed, (data), force
+                1, 0, 0, 0, 0, null, true
         );
     }
 }

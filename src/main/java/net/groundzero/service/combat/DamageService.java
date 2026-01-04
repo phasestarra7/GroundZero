@@ -57,6 +57,11 @@ public final class DamageService implements GameService {
         if (victim == null || cause == null) return;
         if (!Core.session.state().isIngame()) return;
 
+        // Self-damage: skip recording (preserve existing lastHit and idle timer)
+        if (attacker.equals(victim)) {
+            return;
+        }
+
         int snap = Core.session.remainingTicks();
 
         // Environment/Mob damage: keep existing attacker within combat window
@@ -106,54 +111,6 @@ public final class DamageService implements GameService {
 
     public void clearAllLastHits() {
         lastHitMap.clear();
-    }
-
-    /* ===================== DeathCause mapping from vanilla ===================== */
-
-    /**
-     * Map vanilla DamageCause to our DeathCause enum.
-     *
-     * @param cause     Bukkit DamageCause
-     * @param hasPlayer true if attacker was a player
-     */
-    public DeathCause mapVanillaCause(EntityDamageEvent.DamageCause cause, boolean hasPlayer) {
-        if (cause == null) return DeathCause.UNKNOWN;
-
-        return switch (cause) {
-            case FALL -> DeathCause.FALL;
-            case VOID -> DeathCause.VOID;
-            case LAVA -> DeathCause.LAVA;
-            case HOT_FLOOR -> DeathCause.HOT_FLOOR;
-            case FIRE -> DeathCause.FIRE;
-            case CAMPFIRE -> DeathCause.CAMPFIRE;
-            case FIRE_TICK -> DeathCause.FIRE_TICK;
-            case DROWNING -> DeathCause.DROWNING;
-            case SUFFOCATION -> DeathCause.SUFFOCATION;
-            case CRAMMING -> DeathCause.CRAMMING;
-            case BLOCK_EXPLOSION, ENTITY_EXPLOSION -> DeathCause.EXPLOSION;
-            case CONTACT -> DeathCause.CACTUS;
-            case LIGHTNING -> DeathCause.LIGHTNING;
-            case STARVATION -> DeathCause.STARVATION;
-            case POISON -> DeathCause.VANILLA_POISON;
-            case WITHER -> DeathCause.WITHER;
-            case MAGIC -> DeathCause.MAGIC;
-            case DRAGON_BREATH -> DeathCause.DRAGON_BREATH;
-            case THORNS -> DeathCause.THORNS;
-            case FALLING_BLOCK -> DeathCause.FALLING_BLOCK;
-            case FLY_INTO_WALL -> DeathCause.FLY_INTO_WALL;
-            case FREEZE -> DeathCause.FREEZE;
-            case SONIC_BOOM -> DeathCause.SONIC_BOOM;
-            case WORLD_BORDER -> DeathCause.WORLD_BORDER;
-            case KILL, SUICIDE -> DeathCause.KILL;
-            case MELTING -> DeathCause.FIRE;
-            case DRYOUT -> DeathCause.DROWNING;
-            case ENTITY_ATTACK, ENTITY_SWEEP_ATTACK ->
-                    hasPlayer ? DeathCause.MELEE : DeathCause.MOB;
-            case PROJECTILE ->
-                    hasPlayer ? DeathCause.VANILLA_PROJECTILE : DeathCause.MOB;
-            case CUSTOM -> DeathCause.UNKNOWN;
-            default -> DeathCause.UNKNOWN;
-        };
     }
 
     /* ===================== custom-damage helpers ===================== */
@@ -240,6 +197,9 @@ public final class DamageService implements GameService {
         World w = center.getWorld();
         double radiusSq = radius * radius;
 
+        // weaponId → DeathCause mapping
+        DeathCause cause = DeathCause.fromWeaponId(weaponId);
+
         // Find all LivingEntities in blast radius
         for (org.bukkit.entity.Entity ent : w.getNearbyEntities(center, radius, radius, radius)) {
             if (!(ent instanceof LivingEntity victim)) continue;
@@ -260,7 +220,7 @@ public final class DamageService implements GameService {
                 recordHit(
                         pVictim.getUniqueId(),
                         attackerId,
-                        DeathCause.CUSTOM_TNT,
+                        cause,
                         weaponId,
                         finalDamage
                 );

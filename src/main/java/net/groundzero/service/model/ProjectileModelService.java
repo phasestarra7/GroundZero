@@ -4,6 +4,7 @@ import net.groundzero.app.Core;
 import net.groundzero.service.GameService;
 import net.groundzero.service.model.handler.AssaultModelHandler;
 import net.groundzero.service.model.handler.AutoModelHandler;
+import net.groundzero.service.model.handler.RpgModelHandler;
 import net.groundzero.service.model.handler.SniperModelHandler;
 import net.groundzero.service.tick.TickBus;
 import org.bukkit.Location;
@@ -11,10 +12,7 @@ import org.bukkit.entity.Display;
 import org.bukkit.entity.Entity;
 import org.bukkit.util.Vector;
 
-import java.util.EnumMap;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -29,9 +27,9 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * Flow:
  * 1. Handler calls attachModel() after spawning anchor (Arrow, etc.)
- * 2. Service creates Display via handler (NOT as passenger - we teleport manually)
+ * 2. Service creates Display(s) via handler
  * 3. Every tick: teleport to anchor, update rotations, call onTick(), cleanup dead anchors
- * 4. When anchor dies: remove Display, call onRemove()
+ * 4. When anchor dies: remove all Display entities
  */
 public final class ProjectileModelService implements TickBus.Tickable, GameService {
 
@@ -45,6 +43,24 @@ public final class ProjectileModelService implements TickBus.Tickable, GameServi
     private static final int MAX_LIFETIME_TICKS = 400;
 
     private boolean running = false;
+
+    /* ===================== Model Data ===================== */
+
+    private record ModelData(
+            Entity anchor,
+            List<Display> displays,
+            ModelType type,
+            ModelHandler handler,
+            int spawnTick
+    ) {
+        boolean isValid() {
+            if (anchor == null || !anchor.isValid() || anchor.isDead()) return false;
+            for (Display d : displays) {
+                if (d == null || !d.isValid() || d.isDead()) return false;
+            }
+            return true;
+        }
+    }
 
     /* ===================== Lifecycle ===================== */
 
@@ -64,7 +80,7 @@ public final class ProjectileModelService implements TickBus.Tickable, GameServi
 
         // Remove all active display entities
         for (ModelData data : activeModels.values()) {
-            removeModelInternal(data);
+            removeDisplays(data.displays);
         }
         activeModels.clear();
     }
@@ -73,7 +89,7 @@ public final class ProjectileModelService implements TickBus.Tickable, GameServi
     public void reset() {
         // Remove all displays on reset too
         for (ModelData data : activeModels.values()) {
-            removeModelInternal(data);
+            removeDisplays(data.displays);
         }
         activeModels.clear();
     }
@@ -88,23 +104,23 @@ public final class ProjectileModelService implements TickBus.Tickable, GameServi
         registerHandler(new AssaultModelHandler());
         registerHandler(new AutoModelHandler());
         registerHandler(new SniperModelHandler());
-//        registerHandler(new rpgModelHandler());
-//        registerHandler(new concussiveModelHandler());
-//        registerHandler(new smokeModelHandler());
+        registerHandler(new RpgModelHandler());
+//        registerHandler(new StunModelHandler());
+//        registerHandler(new SmokeModelHandler());
 //
-//        registerHandler(new aerialSimpleModelHandler());
-//        registerHandler(new aerialArrowModelHandler());
-//        registerHandler(new aerialClusterModelHandler());
-//        registerHandler(new aerialSpreaderModelHandler());
-//        registerHandler(new aerialCarpetModelHandler());
-//        registerHandler(new aerialHackHandler());
+//        registerHandler(new AerialSimpleModelHandler());
+//        registerHandler(new AerialArrowModelHandler());
+//        registerHandler(new AerialClusterModelHandler());
+//        registerHandler(new AerialSpreaderModelHandler());
+//        registerHandler(new AerialCarpetModelHandler());
+//        registerHandler(new AerialHackHandler());
 //
-//        registerHandler(new missileSimpleModelHandler());
-//        registerHandler(new missilePoisonModelHandler());
-//        registerHandler(new missileBunkerModelHandler());
-//        registerHandler(new missileHighExpModelHandler());
-//        registerHandler(new missileNuclearHandler());
-//        registerHandler(new missileAbmHandler());
+//        registerHandler(new MissileSimpleModelHandler());
+//        registerHandler(new MissilePoisonModelHandler());
+//        registerHandler(new MissileBunkerModelHandler());
+//        registerHandler(new MissileHighExpModelHandler());
+//        registerHandler(new MissileNuclearHandler());
+//        registerHandler(new MissileAbmHandler());
     }
 
     private void registerHandler(ModelHandler handler) {
@@ -118,8 +134,11 @@ public final class ProjectileModelService implements TickBus.Tickable, GameServi
     /* ===================== Model Attachment ===================== */
 
     /**
-     * Attach a visual model to an anchor entity.
-     * NOTE: Does NOT use passenger - we manually teleport every tick.
+     * Attach visual model(s) to an anchor entity.
+     *
+     * @param anchor The entity to attach to (Arrow, TNTPrimed, etc.)
+     * @param type   The ModelType to attach
+     * @return true if successfully attached
      */
     public boolean attachModel(Entity anchor, ModelType type) {
         if (anchor == null || type == null) return false;
@@ -139,14 +158,14 @@ public final class ProjectileModelService implements TickBus.Tickable, GameServi
         }
 
         try {
-            Display display = handler.createModel(anchor);
-            if (display == null) {
-                Core.plugin.getLogger().warning("[ProjectileModelService] Handler returned null display");
+            List<Display> displays = handler.createModels(anchor);
+            if (displays == null || displays.isEmpty()) {
+                Core.plugin.getLogger().warning("[ProjectileModelService] Handler returned empty displays");
                 return false;
             }
 
             int currentTick = Core.tickBus.getCurrentTick();
-            ModelData data = new ModelData(anchor, display, type, handler, currentTick);
+            ModelData data = new ModelData(anchor, displays, type, handler, currentTick);
             activeModels.put(anchor.getUniqueId(), data);
 
             return true;
@@ -164,7 +183,7 @@ public final class ProjectileModelService implements TickBus.Tickable, GameServi
 
         ModelData data = activeModels.remove(anchorId);
         if (data != null) {
-            removeModelInternal(data);
+            removeDisplays(data.displays);
         }
     }
 
@@ -183,63 +202,48 @@ public final class ProjectileModelService implements TickBus.Tickable, GameServi
 
             // Check if anchor still valid
             if (!data.isValid()) {
-                removeModelInternal(data);
+                removeDisplays(data.displays);
                 it.remove();
                 continue;
             }
 
-            // Check if it's stupidly living long, aka. stuck
-            int ticksAlive = data.getTicksAlive(currentTick);
+            // Check max lifetime (orphaned cleanup)
+            int ticksAlive = currentTick - data.spawnTick;
             if (ticksAlive > MAX_LIFETIME_TICKS) {
-                removeModelInternal(data);
+                removeDisplays(data.displays);
                 it.remove();
                 continue;
             }
 
-            Entity anchor = data.getAnchor();
-            Display display = data.getDisplay();
-            ModelHandler handler = data.getHandler();
-
-            // === CRITICAL: Teleport display to anchor position ===
-            Location a = anchor.getLocation();
+            // Sync position: teleport all displays to anchor
+            // CRITICAL: yaw/pitch must be 0 to prevent double rotation
+            Location a = data.anchor.getLocation();
             Location dst = new Location(a.getWorld(), a.getX(), a.getY(), a.getZ(), 0f, 0f);
-            display.teleport(dst);
+            for (Display d : data.displays) {
+                d.teleport(dst);
+            }
 
             // Update rotation for BULLET category
-            if (data.getType().needsRotationUpdate()) {
-                Vector velocity = anchor.getVelocity();
-                handler.updateRotation(display, velocity);
+            if (data.type.needsRotationUpdate()) {
+                Vector velocity = data.anchor.getVelocity();
+                data.handler.updateRotation(data.displays, velocity);
             }
 
-            // Call handler's onTick for visual effects (particles, etc.)
-            handler.onTick(display, anchor, ticksAlive);
+            // Per-tick effects
+            data.handler.onTick(data.displays, data.anchor, ticksAlive);
         }
     }
 
-    /* ===================== Internal Cleanup ===================== */
+    /* ===================== Internal Helpers ===================== */
 
-    private void removeModelInternal(ModelData data) {
-        if (data == null) return;
-
-        Display display = data.getDisplay();
-        if (display != null) {
-            try { display.remove(); } catch (Exception ignored) {}
+    private void removeDisplays(List<Display> displays) {
+        if (displays == null) return;
+        for (Display d : displays) {
+            try {
+                if (d != null && d.isValid()) {
+                    d.remove();
+                }
+            } catch (Throwable ignored) {}
         }
-
-        // remove arrow too, not being simulated
-        Entity anchor = data.getAnchor();
-        if (anchor != null && anchor.isValid()) {
-            try { anchor.remove(); } catch (Exception ignored) {}
-        }
-    }
-
-    /* ===================== Query ===================== */
-
-    public boolean hasModel(UUID anchorId) {
-        return activeModels.containsKey(anchorId);
-    }
-
-    public int getActiveModelCount() {
-        return activeModels.size();
     }
 }

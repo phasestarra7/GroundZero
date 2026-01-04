@@ -18,7 +18,7 @@ public enum ModelType {
     RPG_ROCKET(Category.BULLET),
 
     /* ===== Grenades (position only, no rotation) ===== */
-    CONCUSSIVE_SHELL(Category.GRENADE),
+    STUN_GRENADE(Category.GRENADE),
     SMOKE_GRENADE(Category.GRENADE),
 
     /* ===== Aerial (rotation fixed on spawn) ===== */

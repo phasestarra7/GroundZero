@@ -3,6 +3,7 @@ package net.groundzero.listener.combat;
 import net.groundzero.app.Core;
 import net.groundzero.listener.BaseListener;
 import net.groundzero.service.combat.PoisonService;
+import net.groundzero.service.combat.ProjectileFlagService;
 import net.groundzero.service.combat.ProjectileService;
 import net.groundzero.service.combat.ProjectileService.Payload;
 import net.groundzero.service.combat.TntService;
@@ -24,7 +25,7 @@ import java.util.UUID;
  * Combat event listener.
  *
  * Damage pipelines:
- * 1. PROJECTILE - Custom arrows (assault, auto, sniper, concussive)
+ * 1. PROJECTILE - Custom arrows (assault, auto, sniper, rpg, stun, smoke)
  * 2. TNT - Custom TNT explosions (handled by TntService, placeholder here)
  * 3. POISON - Custom DoT (handled by PoisonService, placeholder here)
  * 4. MISSILE - Missile explosions (handled by MissileService, placeholder here)
@@ -35,10 +36,27 @@ public final class CombatListener extends BaseListener implements Listener {
 
     /* ==================== PROJECTILE HIT (cleanup) ==================== */
 
-    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onProjectileHit(ProjectileHitEvent e) {
         if (!(e.getEntity() instanceof Arrow arrow)) return;
         if (!ProjectileService.isOurArrow(arrow)) return;
+        if (ProjectileService.isHandled(arrow)) return;
+
+        // mark as handled, no duplicated handles
+        ProjectileService.markHandled(arrow);
+
+        Payload payload = ProjectileService.readArrowPayload(arrow);
+        if (payload == null) {
+            Core.schedulers.runLater(arrow::remove, 1L);
+            return;
+        }
+
+        // Check for RPG explosive flag
+        if (ProjectileFlagService.hasFlag(payload.flags(), ProjectileFlagService.FLAG_RPG_EXPLOSIVE)) {
+            ProjectileFlagService.handleRpgExplosion(arrow, payload, e);
+        }
+
+        // Cleanup arrow (all our arrows)
         Core.schedulers.runLater(arrow::remove, 1L);
     }
 
@@ -61,7 +79,7 @@ public final class CombatListener extends BaseListener implements Listener {
             e.setCancelled(true);
 
             final UUID attackerId = payload.owner();
-            DeathCause cause = mapWeaponIdToCause(payload.weaponId());
+            DeathCause cause = DeathCause.fromWeaponId(payload.weaponId());
 
             if (victim instanceof Player pVictim) {
                 Core.damageService.recordHit(
@@ -73,7 +91,11 @@ public final class CombatListener extends BaseListener implements Listener {
                 );
             }
 
-            Core.damageService.applyProjectileDamage(attackerId, victim, payload);
+            // just in case DamageService might cannot handle 0 damage
+            if (payload.baseDamage() > 0) {
+                Core.damageService.applyProjectileDamage(attackerId, victim, payload);
+            }
+
             Core.schedulers.runLater(arrow::remove, 1L);
             return;
         }
@@ -136,7 +158,7 @@ public final class CombatListener extends BaseListener implements Listener {
 
     /* ==================== TNT EXPLOSION ==================== */
 
-    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onEntityExplode(EntityExplodeEvent e) {
         if (!(e.getEntity() instanceof TNTPrimed tnt)) return;
         if (!TntService.isOurTnt(tnt)) return;
@@ -160,7 +182,7 @@ public final class CombatListener extends BaseListener implements Listener {
 
     /* ==================== ENVIRONMENT DAMAGE ==================== */
 
-    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onEntityDamage(EntityDamageEvent e) {
         // Skip if already handled by EntityDamageByEntityEvent
         if (e instanceof EntityDamageByEntityEvent) return;
@@ -176,7 +198,7 @@ public final class CombatListener extends BaseListener implements Listener {
             }
         }
 
-        DeathCause cause = Core.damageService.mapVanillaCause(e.getCause(), false);
+        DeathCause cause = DeathCause.fromVanillaCause(e.getCause(), false);
 
         Core.damageService.recordHit(
                 victim.getUniqueId(),
@@ -185,41 +207,5 @@ public final class CombatListener extends BaseListener implements Listener {
                 null,
                 e.getFinalDamage()
         );
-    }
-
-    /* ==================== WEAPON ID -> DEATH CAUSE ==================== */
-
-    private DeathCause mapWeaponIdToCause(String weaponId) {
-        if (weaponId == null || weaponId.isEmpty()) return DeathCause.UNKNOWN;
-        String lower = weaponId.toLowerCase();
-
-        // Personal weapons
-        if (lower.contains("assault")) return DeathCause.ASSAULT;
-        if (lower.contains("auto")) return DeathCause.AUTO;
-        if (lower.contains("sniper")) return DeathCause.SNIPER;
-        if (lower.contains("concussive")) return DeathCause.CONCUSSIVE;
-        if (lower.contains("rpg")) return DeathCause.RPG;
-        if (lower.contains("smoke")) return DeathCause.SMOKE;
-
-        // Aerial
-        if (lower.contains("aerial_simple")) return DeathCause.AERIAL_SIMPLE;
-        if (lower.contains("aerial_arrow")) return DeathCause.AERIAL_ARROW;
-        if (lower.contains("aerial_cluster")) return DeathCause.AERIAL_CLUSTER;
-        if (lower.contains("aerial_random")) return DeathCause.AERIAL_RANDOM;
-        if (lower.contains("aerial_carpet")) return DeathCause.AERIAL_CARPET;
-        if (lower.contains("aerial_hack")) return DeathCause.AERIAL_HACK;
-
-        // Missiles
-        if (lower.contains("missile_simple")) return DeathCause.MISSILE_SIMPLE;
-        if (lower.contains("missile_poison")) return DeathCause.MISSILE_POISON;
-        if (lower.contains("missile_bunker")) return DeathCause.MISSILE_BUNKER;
-        if (lower.contains("missile_highexp")) return DeathCause.MISSILE_HIGHEXP;
-        if (lower.contains("missile_nuclear")) return DeathCause.MISSILE_NUCLEAR;
-        if (lower.contains("missile_abm")) return DeathCause.MISSILE_ABM;
-
-        // TNT
-        if (lower.contains("tnt")) return DeathCause.CUSTOM_TNT;
-
-        return DeathCause.UNKNOWN;
     }
 }

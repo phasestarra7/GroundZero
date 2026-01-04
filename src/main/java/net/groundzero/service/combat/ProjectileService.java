@@ -26,8 +26,21 @@ public final class ProjectileService {
     public static final NamespacedKey KEY_PROJ_OWNER = new NamespacedKey(Core.plugin, "gz_proj_owner");
     public static final NamespacedKey KEY_PROJ_DAMAGE = new NamespacedKey(Core.plugin, "gz_proj_damage");
     public static final NamespacedKey KEY_PROJ_FLAGS = new NamespacedKey(Core.plugin, "gz_proj_flags");
+    public static final NamespacedKey KEY_PROJ_HANDLED = new NamespacedKey(Core.plugin, "gz_proj_handled");
 
     private static final Random RNG = new Random();
+
+    /** Mark arrow as handled (prevents duplicate processing) */
+    public static void markHandled(Arrow a) {
+        if (a == null) return;
+        a.getPersistentDataContainer().set(KEY_PROJ_HANDLED, PersistentDataType.BYTE, (byte) 1);
+    }
+
+    /** Check if arrow was already handled */
+    public static boolean isHandled(Arrow a) {
+        if (a == null) return true;
+        return a.getPersistentDataContainer().has(KEY_PROJ_HANDLED, PersistentDataType.BYTE);
+    }
 
     private static Vector randomSpread(double s) {
         if (s <= 0.0) return new Vector(0, 0, 0);
@@ -63,7 +76,7 @@ public final class ProjectileService {
         public boolean glowing = false;
         public String debugName = null;
 
-        // Bit flags for future behaviors (concussive/smoke/etc.)
+        // Bit flags for future behaviors (stun/smoke/etc.)
         public int flags = 0;
     }
 

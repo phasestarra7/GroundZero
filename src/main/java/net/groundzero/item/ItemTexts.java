@@ -137,8 +137,8 @@ public final class ItemTexts {
             );
 
             // Weapons - Consumable
-            case CONCUSSIVE -> List.of(
-                    "§7Stun shell projectile",
+            case STUN -> List.of(
+                    "§7Stun grenade",
                     "§7Disables enemies on impact"
             );
             case SMOKE -> List.of(
@@ -284,8 +284,8 @@ public final class ItemTexts {
             );
 
             // Weapons - Consumable
-            case CONCUSSIVE -> List.of(
-                    "§e[R]§f Throw Shell"
+            case STUN -> List.of(
+                    "§e[R]§f Throw Grenade"
             );
             case SMOKE -> List.of(
                     "§e[R]§f Throw Grenade"

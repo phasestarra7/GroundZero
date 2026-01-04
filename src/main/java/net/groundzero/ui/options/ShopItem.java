@@ -14,7 +14,7 @@ public enum ShopItem {
     AUTO(ItemType.AUTO, 12),
     SNIPER(ItemType.SNIPER, 13),
     RPG(ItemType.RPG, 14),
-    CONCUSSIVE(ItemType.CONCUSSIVE, 15),
+    STUN(ItemType.STUN, 15),
     SMOKE(ItemType.SMOKE, 16),
 
     /* ===== Support (6) ===== */
@@ -59,7 +59,7 @@ public enum ShopItem {
             case AUTO -> Core.gameConfig.autoPrice;
             case SNIPER -> Core.gameConfig.sniperPrice;
             case RPG -> Core.gameConfig.rpgPrice;
-            case CONCUSSIVE -> Core.gameConfig.concussivePrice;
+            case STUN -> Core.gameConfig.stunPrice;
             case SMOKE -> Core.gameConfig.smokePrice;
 
             // Support
@@ -98,7 +98,7 @@ public enum ShopItem {
             case AUTO -> Core.gameConfig.autoIncome;
             case SNIPER -> Core.gameConfig.sniperIncome;
             case RPG -> Core.gameConfig.rpgIncome;
-            case CONCUSSIVE -> Core.gameConfig.concussiveIncome;
+            case STUN -> Core.gameConfig.stunIncome;
             case SMOKE -> Core.gameConfig.smokeIncome;
 
             // Support
@@ -137,7 +137,7 @@ public enum ShopItem {
             case AUTO -> Core.gameConfig.autoAmount;
             case SNIPER -> Core.gameConfig.sniperAmount;
             case RPG -> Core.gameConfig.rpgAmount;
-            case CONCUSSIVE -> Core.gameConfig.concussiveAmount;
+            case STUN -> Core.gameConfig.stunAmount;
             case SMOKE -> Core.gameConfig.smokeAmount;
 
             // Support

@@ -20,72 +20,34 @@ public final class CombatOutcomeService {
 
     /**
      * Normal death during the match.
+     * Called from PlayerService.onDeathIngame().
      */
-    public void handlePlayerDeath(Player victim, String vanillaMsg) {
-        if (victim == null || !Core.session.state().isIngame()) return;
-        applyDeathScoring(victim.getUniqueId(), victim.getName());
+    public void handlePlayerDeath(UUID victimId, String victimName) {
+        if (victimId == null || !Core.session.state().isIngame()) return;
+        applyDeathScoring(victimId, victimName, false);
     }
 
     /**
      * Logout during the match. Treated as a death for scoring.
+     * Called from PlayerService.onQuitIngame().
      */
-    public void handleLogoutDeath(Player victim) {
-        if (victim == null || !Core.session.state().isIngame()) return;
-
-        UUID victimId = victim.getUniqueId();
-        String victimName = victim.getName();
-
-        double vScore = Core.session.getScoreMap().getOrDefault(victimId, 0.0);
-
-        LastHit last = Core.damageService.peekLastHit(victimId);
-        UUID aId = resolveAttackerInWindow(last);
-
-        if (aId != null) {
-            double loss = Math.max(0.0, vScore * clamp01(Core.gameConfig.deathPenaltyPercent));
-            double aScore = Core.session.getScoreMap().getOrDefault(aId, 0.0);
-            double gain = Math.max(0.0, vScore * clamp01(Core.gameConfig.killStealPercent));
-
-            Core.session.getScoreMap().put(victimId, Math.max(0.0, vScore - loss));
-            Core.session.getScoreMap().put(aId, Math.max(0.0, aScore + gain));
-
-            Player a = Bukkit.getPlayer(aId);
-            String aName = (a != null ? a.getName() : "Unknown");
-
-            Core.notifier.broadcast(
-                    Bukkit.getOnlinePlayers(),
-                    Sound.ENTITY_PLAYER_LEVELUP,
-                    Notifier.PitchLevel.MID,
-                    false,
-                    "&a" + victimName + " &flogged out and was killed by &a" + aName,
-                    "&a" + aName + "&f : &e+" + fmt(gain) + " points",
-                    "&a" + victimName + "&f : &c-" + fmt(loss) + " points"
-            );
-        } else {
-            double loss = Math.max(0.0, vScore * clamp01(Core.gameConfig.nonPlayerDeathPenaltyPercent));
-            Core.session.getScoreMap().put(victimId, Math.max(0.0, vScore - loss));
-
-            Core.notifier.broadcast(
-                    Bukkit.getOnlinePlayers(),
-                    Sound.BLOCK_NOTE_BLOCK_BASS,
-                    Notifier.PitchLevel.MID,
-                    false,
-                    "&a" + victimName + " &flogged out",
-                    "&a" + victimName + "&f : &c-" + fmt(loss) + " points"
-            );
-        }
+    public void handleLogoutDeath(UUID victimId, String victimName) {
+        if (victimId == null || !Core.session.state().isIngame()) return;
+        applyDeathScoring(victimId, victimName, true);
     }
 
     /* =========================================================
-     * internal scoring
+     * Internal Scoring
      * ========================================================= */
 
-    private void applyDeathScoring(UUID victimId, String victimName) {
+    private void applyDeathScoring(UUID victimId, String victimName, boolean isLogout) {
         double vScore = Core.session.getScoreMap().getOrDefault(victimId, 0.0);
 
         LastHit last = Core.damageService.peekLastHit(victimId);
         UUID aId = resolveAttackerInWindow(last);
 
         if (aId != null) {
+            // Player kill
             double loss = Math.max(0.0, vScore * clamp01(Core.gameConfig.deathPenaltyPercent));
             double aScore = Core.session.getScoreMap().getOrDefault(aId, 0.0);
             double gain = Math.max(0.0, vScore * clamp01(Core.gameConfig.killStealPercent));
@@ -96,7 +58,9 @@ public final class CombatOutcomeService {
             Player a = Bukkit.getPlayer(aId);
             String aName = (a != null ? a.getName() : "Unknown");
 
-            String deathLine = buildDeathLineWithAttacker(last, victimName, aName);
+            String deathLine = isLogout
+                    ? "&a" + victimName + " &flogged out and was killed by &a" + aName
+                    : buildDeathLineWithAttacker(last, victimName, aName);
 
             Core.notifier.broadcast(
                     Bukkit.getOnlinePlayers(),
@@ -108,10 +72,13 @@ public final class CombatOutcomeService {
                     "&a" + victimName + "&f : &c-" + fmt(loss) + " points"
             );
         } else {
+            // Environment / no attacker
             double loss = Math.max(0.0, vScore * clamp01(Core.gameConfig.nonPlayerDeathPenaltyPercent));
             Core.session.getScoreMap().put(victimId, Math.max(0.0, vScore - loss));
 
-            String deathLine = buildDeathLineNoAttacker(last, victimName);
+            String deathLine = isLogout
+                    ? "&a" + victimName + " &flogged out"
+                    : buildDeathLineNoAttacker(last, victimName);
 
             Core.notifier.broadcast(
                     Bukkit.getOnlinePlayers(),
@@ -148,16 +115,19 @@ public final class CombatOutcomeService {
 
         return switch (cause) {
             // Custom Weapons (arrow-based)
-            case ASSAULT, AUTO, SNIPER, CONCUSSIVE ->
+            case ASSAULT, AUTO, SNIPER ->
                     "&a" + victimName + " &fwas shot by &a" + attackerName
                             + (weapon != null ? " &fusing &e" + weapon : "");
 
-            // RPG / Custom TNT
+            // RPG
             case RPG ->
                     "&a" + victimName + " &fwas blown up by &a" + attackerName + "&f's RPG";
-            case CUSTOM_TNT ->
-                    "&a" + victimName + " &fwas blown up by &a" + attackerName;
-
+            // STUN; won't happen but placeholder
+            case STUN ->
+                    "&a" + victimName + " &fwas hit by &a" + attackerName + "&f's Stun Grenade";
+            // SMOKE; won't happen but placeholder
+            case SMOKE ->
+                    "&a" + victimName + " &fwas hit by &a" + attackerName + "&f's Smoke Grenade";
             // Poison
             case POISON_TICK ->
                     "&a" + victimName + " &fsuccumbed to poison from &a" + attackerName;
@@ -167,7 +137,7 @@ public final class CombatOutcomeService {
                     "&a" + victimName + " &fwas hit by &a" + attackerName + "&f's airstrike";
             case AERIAL_CLUSTER ->
                     "&a" + victimName + " &fwas shredded by &a" + attackerName + "&f's cluster strike";
-            case AERIAL_RANDOM ->
+            case AERIAL_SPREADER ->
                     "&a" + victimName + " &fwas caught in &a" + attackerName + "&f's bombardment";
             case AERIAL_CARPET ->
                     "&a" + victimName + " &fwas obliterated by &a" + attackerName + "&f's carpet bombing";
@@ -239,7 +209,7 @@ public final class CombatOutcomeService {
                     "&a" + victimName + " &fleft the confines of this world whilst fighting &a" + attackerName;
 
             // Mobs / fallback
-            case KILL, MOB, SMOKE, UNKNOWN ->
+            case KILL, MOB, UNKNOWN ->
                     "&a" + victimName + " &fwas killed by &a" + attackerName;
             default ->
                     "&a" + victimName + " &fwas killed by &a" + attackerName;
@@ -307,7 +277,7 @@ public final class CombatOutcomeService {
             case KILL ->
                     "&a" + victimName + " &fwas removed from the game";
             case MOB ->
-                    "&a" + victimName + " &fwas killed";
+                    "&a" + victimName + " &fwas killed by monster";
             default ->
                     "&a" + victimName + " &fdied";
         };
@@ -319,31 +289,20 @@ public final class CombatOutcomeService {
 
     private String formatWeaponLabel(String weaponId) {
         if (weaponId == null || weaponId.isEmpty()) return null;
-
-        String id = weaponId;
-        if (id.startsWith("gz_")) {
-            id = id.substring(3);
-        }
-
-        id = id.replace('_', ' ').replace('-', ' ');
-
-        String[] parts = id.split("\\s+");
-        StringBuilder sb = new StringBuilder();
-        for (String part : parts) {
-            if (part.isEmpty()) continue;
-            if (sb.length() > 0) sb.append(' ');
-            sb.append(Character.toUpperCase(part.charAt(0)));
-            if (part.length() > 1) {
-                sb.append(part.substring(1));
-            }
-        }
-        return sb.toString();
+        String lower = weaponId.toLowerCase().replace("gz_", "");
+        return switch (lower) {
+            case "assault" -> "Assault Rifle";
+            case "auto" -> "Auto Rifle";
+            case "sniper" -> "Sniper Rifle";
+            case "rpg" -> "RPG";
+            case "stun" -> "Stun Grenade";
+            case "smoke" -> "Smoke Grenade";
+            default -> null;
+        };
     }
 
-    private static double clamp01(double v) {
-        if (v < 0.0) return 0.0;
-        if (v > 1.0) return 1.0;
-        return v;
+    private double clamp01(double v) {
+        return Math.max(0.0, Math.min(1.0, v));
     }
 
     private static String fmt(double v) {

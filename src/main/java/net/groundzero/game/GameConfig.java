@@ -61,7 +61,7 @@ public final class GameConfig {
     public int autoPrice = 100;
     public int sniperPrice = 100;
     public int rpgPrice = 100;
-    public int concussivePrice = 100;
+    public int stunPrice = 100;
     public int smokePrice = 100;
 
     public int medkitPrice = 100;
@@ -90,7 +90,7 @@ public final class GameConfig {
     public double autoIncome = 0.1;
     public double sniperIncome = 0.1;
     public double rpgIncome = 0.1;
-    public double concussiveIncome = 0.1;
+    public double stunIncome = 0.1;
     public double smokeIncome = 0.1;
 
     public double medkitIncome = 0.1;
@@ -119,7 +119,7 @@ public final class GameConfig {
     public int autoAmount = 60;      // magazine size
     public int sniperAmount = 5;     // magazine size
     public int rpgAmount = 5;        // magazine size
-    public int concussiveAmount = 1;
+    public int stunAmount = 1;
     public int smokeAmount = 1;
 
     public int medkitAmount = 1;
@@ -152,7 +152,7 @@ public final class GameConfig {
     public int sniperCooldownTicksR = 20;
     public int rpgCooldownTicksL = 0;
     public int rpgCooldownTicksR = 50;
-    public int concussiveCooldownTicksR = 20;
+    public int stunCooldownTicksR = 20;
     public int smokeCooldownTicksR = 20;
 
     public int medkitCooldownTicksR = 20;
@@ -220,14 +220,20 @@ public final class GameConfig {
     public int sniperRecoilRecoveryTicks = 20;
 
     /* ===== RPG ===== */
-    public double rpgDamage = 25.0;              // direct hit (explosion separate)
+    public double rpgDamage = 0.0;              // direct hit (explosion separate)
     public double rpgProjectileSpeed = 2.5;
     public double rpgSpread = 0.01;
-    public int rpgMagazineSize = 1;
-    public int rpgReloadTicks = 120;             // 6 seconds
-    public double rpgRecoilPitch = 3.0;
+    public int rpgMagazineSize = 5;
+    public int rpgReloadTicks = 100;             // 5 seconds
+    public double rpgRecoilPitch = 0.75;
     public double rpgRecoilYaw = 0.5;
-    public int rpgRecoilRecoveryTicks = 6;
+    public int rpgRecoilRecoveryTicks = 4;
+
+    public double rpgExplosionDamage = 20.0;
+    public double rpgBlastRadius = 4.0;
+
+    public double rpgRocketJumpVelocity = 1.5;
+    public double rpgRocketJumpSelfDamage = 5.0;
 
     public GameConfig() {}
 }

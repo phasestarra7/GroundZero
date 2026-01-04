@@ -31,7 +31,7 @@ public final class PlayerGameState {
     /* ===== Hotbar Swap (Console) ===== */
     private boolean hotbarSwapped = false;
 
-    /* ===== Effect Sources (ADS, Zoom, Concussive, etc.) ===== */
+    /* ===== Effect Sources (ADS, Scope, stun, etc.) ===== */
     private final Map<EffectSource, Integer> effectSources = new EnumMap<>(EffectSource.class);
     private boolean jumpBlocked = false;
 
@@ -165,7 +165,7 @@ public final class PlayerGameState {
      * Get active effect sources map.
      * Key: EffectSource, Value: endTick (0 = manual, >0 = auto-expire tick)
      */
-    // if you need ADS, ZOOM, CONCUSSIVE source : go to PlayerEffectService
+    // if you need ADS, SCOPE, STUN source : go to PlayerEffectService
     public Map<EffectSource, Integer> getEffectSources() { return effectSources; }
     public boolean isJumpBlocked() { return jumpBlocked; }
     public void setJumpBlocked(boolean blocked) { this.jumpBlocked = blocked; }

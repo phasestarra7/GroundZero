@@ -130,12 +130,12 @@ public final class PlayerService implements GameService {
         UUID id = p.getUniqueId();
         PlayerGameState state = Core.playerStates.getOrCreate(id);
 
-        // 1) Spectator quit
+        // 1) Spectator quit - just leave
         if (Core.session.getSpectatorsView().contains(id)) {
             return;
         }
 
-        // 2) Already dead: cancel respawn task (timer keeps running)
+        // 2) Already dead: cancel respawn task, don't reschedule until rejoin
         if (state.isDead()) {
             BukkitTask pending = state.getRespawnTask();
             if (pending != null) {
@@ -146,12 +146,11 @@ public final class PlayerService implements GameService {
             return;
         }
 
-        // 3) Alive participant logs out: treat as death
-        Core.combatOutcomeService.handleLogoutDeath(p);
+        // 3) Alive participant logs out: treat as death (no respawn until rejoin)
+        Core.combatOutcomeService.handleLogoutDeath(id, p.getName());
         state.markDead();
-
-        // Reset idle timer to -respawnDelayTicks
         Core.combatIdleService.onDeath(id);
+        // Note: No scheduleRespawn here - will be scheduled in onJoinIngame when they return
     }
 
     /* ===================== DEATH ===================== */
@@ -185,16 +184,21 @@ public final class PlayerService implements GameService {
             return;
         }
 
-        // Mark as dead
+        // 1. Score / kill credit + custom death message
+        Core.combatOutcomeService.handlePlayerDeath(id, p.getName());
+
+        // 2. Mark as dead
         state.markDead();
 
-        // Reset idle timer to -respawnDelayTicks (timer starts at 0 after respawn)
+        // 3. Reset idle timer to -respawnDelayTicks (timer starts at 0 after respawn)
         Core.combatIdleService.onDeath(id);
 
-        // Move to spectator
+        // Clear pending recoil recovery
+        Core.recoilService.clearPlayer(id);
+        // 4. Move to spectator
         Core.game.setSpectatorAndTeleportToCenter(id);
 
-        // Schedule respawn
+        // 5. Schedule respawn
         scheduleRespawn(p, id);
     }
 
