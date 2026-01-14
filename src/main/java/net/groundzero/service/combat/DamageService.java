@@ -58,7 +58,7 @@ public final class DamageService implements GameService {
         if (!Core.session.state().isIngame()) return;
 
         // Self-damage: skip recording (preserve existing lastHit and idle timer)
-        if (attacker.equals(victim)) {
+        if (attacker != null && attacker.equals(victim)) {
             return;
         }
 

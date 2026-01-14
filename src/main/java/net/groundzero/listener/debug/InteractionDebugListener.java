@@ -8,198 +8,264 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
-import org.bukkit.event.block.Action;
-import org.bukkit.event.entity.EntityDamageByEntityEvent;
-import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.*;
 import org.bukkit.event.player.PlayerAnimationEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.inventory.EquipmentSlot;
+import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.InventoryView;
 import org.bukkit.inventory.ItemStack;
 
 /**
  * DEBUG ONLY - Remove in production
  *
- * Traces all interaction events to diagnose:
- * 1. ARM_SWING → DROP timing issue
- * 2. Protected slot not working in shop GUI
- * 3. Vanilla action conflicts
+ * Focus: Q-drop / fake left click / creative inventory semantics.
+ *
+ * Events logged:
+ * - ARM_SWING (PlayerAnimationEvent)
+ * - INTERACT (PlayerInteractEvent)
+ * - DROP (PlayerDropItemEvent)
+ * - INV_CLICK (InventoryClickEvent)
+ * - INV_CREATIVE (InventoryCreativeEvent)
+ *
+ * Every log prints:
+ * - Tick, player, gamemode
+ * - Open inventory view (top/bottom type + title)
+ * - Event-specific fields
+ * - Item snapshots: eventItem / currentItem / cursor(event) / cursor(player) / mainHand / offHand
  */
 public final class InteractionDebugListener extends BaseListener implements Listener {
 
     private static final String PREFIX = "§e[DEBUG]§f ";
-    private static final boolean ENABLED = true; // Toggle debugging
+    private static final boolean ENABLED = true;
 
-    /* ==================== ARM_SWING ==================== */
+    /* ==================== ARM SWING ==================== */
 
-    @EventHandler(priority = EventPriority.LOWEST)
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = false)
     public void onArmSwing(PlayerAnimationEvent event) {
         if (!ENABLED) return;
 
-        Player player = event.getPlayer();
+        Player p = event.getPlayer();
         int tick = Bukkit.getCurrentTick();
-        ItemStack item = player.getInventory().getItemInMainHand();
-        ItemType type = Core.itemRegistry.getType(item);
 
-        log(tick, "ARM_SWING",
-                "Player: " + player.getName(),
-                "Item: " + (type != null ? type.id : "vanilla/" + item.getType()),
-                "Priority: LOWEST");
+        log(tick, "ARM_SWING", p,
+                "Anim: " + event.getAnimationType()
+        );
     }
 
-    /* ==================== PLAYER INTERACT ==================== */
+    /* ==================== INTERACT ==================== */
 
-    @EventHandler(priority = EventPriority.LOWEST)
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
     public void onInteractLowest(PlayerInteractEvent event) {
         if (!ENABLED) return;
         logInteract(event, "LOWEST");
     }
 
-    @EventHandler(priority = EventPriority.NORMAL)
-    public void onInteractNormal(PlayerInteractEvent event) {
-        if (!ENABLED) return;
-        logInteract(event, "NORMAL");
-    }
-
-    @EventHandler(priority = EventPriority.HIGHEST)
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
     public void onInteractHighest(PlayerInteractEvent event) {
         if (!ENABLED) return;
         logInteract(event, "HIGHEST");
     }
 
-    @EventHandler(priority = EventPriority.MONITOR)
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = false)
     public void onInteractMonitor(PlayerInteractEvent event) {
         if (!ENABLED) return;
         logInteract(event, "MONITOR");
     }
 
-    private void logInteract(PlayerInteractEvent event, String priority) {
-        Player player = event.getPlayer();
+    private void logInteract(PlayerInteractEvent event, String prio) {
+        Player p = event.getPlayer();
         int tick = Bukkit.getCurrentTick();
-        Action action = event.getAction();
-        ItemStack item = event.getItem();
-        ItemType type = item != null ? Core.itemRegistry.getType(item) : null;
 
-        String blockInfo = "";
-        if (event.getClickedBlock() != null) {
-            blockInfo = "Block: " + event.getClickedBlock().getType();
-        }
+        String blockInfo = (event.getClickedBlock() != null)
+                ? ("ClickedBlock: " + event.getClickedBlock().getType())
+                : "ClickedBlock: null";
 
-        log(tick, "PLAYER_INTERACT",
-                "Player: " + player.getName(),
-                "Action: " + action,
-                "Item: " + (type != null ? type.id : (item != null ? "vanilla/" + item.getType() : "null")),
+        String handInfo = "Hand: " + (event.getHand() != null ? event.getHand() : "null");
+
+        log(tick, "INTERACT", p,
+                "Priority: " + prio,
+                "Action: " + event.getAction(),
+                handInfo,
                 blockInfo,
+                "UseItemInHand: " + event.useItemInHand(),
+                "UseInteractedBlock: " + event.useInteractedBlock(),
                 "Cancelled: " + event.isCancelled(),
-                "Priority: " + priority);
+                // Important: event.getItem() can differ from actual main hand in some cases
+                "EventItem: " + fmtItem(event.getItem()),
+                "MainHand: " + fmtItem(p.getInventory().getItemInMainHand()),
+                "OffHand: " + fmtItem(p.getInventory().getItemInOffHand())
+        );
     }
 
     /* ==================== DROP ==================== */
 
-    @EventHandler(priority = EventPriority.LOWEST)
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
     public void onDropLowest(PlayerDropItemEvent event) {
         if (!ENABLED) return;
         logDrop(event, "LOWEST");
     }
 
-    @EventHandler(priority = EventPriority.HIGHEST)
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
     public void onDropHighest(PlayerDropItemEvent event) {
         if (!ENABLED) return;
         logDrop(event, "HIGHEST");
     }
 
-    @EventHandler(priority = EventPriority.MONITOR)
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = false)
     public void onDropMonitor(PlayerDropItemEvent event) {
         if (!ENABLED) return;
         logDrop(event, "MONITOR");
     }
 
-    private void logDrop(PlayerDropItemEvent event, String priority) {
-        Player player = event.getPlayer();
+    private void logDrop(PlayerDropItemEvent event, String prio) {
+        Player p = event.getPlayer();
         int tick = Bukkit.getCurrentTick();
-        ItemStack item = event.getItemDrop().getItemStack();
-        ItemType type = Core.itemRegistry.getType(item);
 
-        log(tick, "PLAYER_DROP",
-                "Player: " + player.getName(),
-                "Item: " + (type != null ? type.id : "vanilla/" + item.getType()),
+        log(tick, "DROP", p,
+                "Priority: " + prio,
+                "DropStack: " + fmtItem(event.getItemDrop() != null ? event.getItemDrop().getItemStack() : null),
                 "Cancelled: " + event.isCancelled(),
-                "Priority: " + priority);
-    }
-
-    /* ==================== ENTITY DAMAGE ==================== */
-
-    @EventHandler(priority = EventPriority.HIGH)
-    public void onEntityDamage(EntityDamageByEntityEvent event) {
-        if (!ENABLED) return;
-        if (!(event.getDamager() instanceof Player player)) return;
-
-        int tick = Bukkit.getCurrentTick();
-        ItemStack item = player.getInventory().getItemInMainHand();
-        ItemType type = Core.itemRegistry.getType(item);
-
-        log(tick, "ENTITY_DAMAGE",
-                "Player: " + player.getName(),
-                "Target: " + event.getEntity().getType(),
-                "Item: " + (type != null ? type.id : "vanilla/" + item.getType()),
-                "Cancelled: " + event.isCancelled(),
-                "Priority: HIGH");
+                "MainHand: " + fmtItem(p.getInventory().getItemInMainHand()),
+                "OffHand: " + fmtItem(p.getInventory().getItemInOffHand())
+        );
     }
 
     /* ==================== INVENTORY CLICK ==================== */
 
-    @EventHandler(priority = EventPriority.HIGHEST)
-    public void onInventoryClickHighest(InventoryClickEvent event) {
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
+    public void onInvClickLowest(InventoryClickEvent event) {
         if (!ENABLED) return;
-        if (!(event.getWhoClicked() instanceof Player player)) return;
-
-        int tick = Bukkit.getCurrentTick();
-        int slot = event.getSlot();
-        int rawSlot = event.getRawSlot();
-        String clickedInv = event.getClickedInventory() != null
-                ? (event.getClickedInventory().equals(player.getInventory()) ? "PLAYER" : "OTHER")
-                : "NULL";
-
-        String holderInfo = "";
-        if (event.getView().getTopInventory().getHolder() != null) {
-            holderInfo = "Holder: " + event.getView().getTopInventory().getHolder().getClass().getSimpleName();
-        }
-
-        log(tick, "INVENTORY_CLICK",
-                "Player: " + player.getName(),
-                "Click: " + event.getClick(),
-                "Action: " + event.getAction(),
-                "Slot: " + slot,
-                "RawSlot: " + rawSlot,
-                "Inventory: " + clickedInv,
-                holderInfo,
-                "Cancelled: " + event.isCancelled(),
-                "Priority: HIGHEST");
+        logInvClick(event, "LOWEST");
     }
 
-    /* ==================== HELPER ==================== */
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
+    public void onInvClickHighest(InventoryClickEvent event) {
+        if (!ENABLED) return;
+        logInvClick(event, "HIGHEST");
+    }
 
-    private void log(int tick, String eventName, String... details) {
-        StringBuilder sb = new StringBuilder();
-        sb.append(PREFIX);
-        sb.append("§6[Tick ").append(tick).append("]§f ");
-        sb.append("§b").append(eventName).append("§f");
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = false)
+    public void onInvClickMonitor(InventoryClickEvent event) {
+        if (!ENABLED) return;
+        logInvClick(event, "MONITOR");
+    }
 
-        for (String detail : details) {
-            if (detail != null && !detail.isEmpty()) {
-                sb.append("\n  §7→ §f").append(detail);
+    private void logInvClick(InventoryClickEvent event, String prio) {
+        if (!(event.getWhoClicked() instanceof Player p)) return;
+        int tick = Bukkit.getCurrentTick();
+
+        Inventory clickedInv = event.getClickedInventory();
+        String clickedInvKind;
+        if (clickedInv == null) clickedInvKind = "NULL";
+        else if (clickedInv.equals(p.getInventory())) clickedInvKind = "PLAYER";
+        else clickedInvKind = "OTHER(" + clickedInv.getType() + ")";
+
+        int raw = event.getRawSlot();
+        int slot = event.getSlot();
+
+        String hb = "HotbarButton: " + event.getHotbarButton();
+        String hotbarLike = "IsHotbarClick: " + (event.getClick().name().contains("HOTBAR") || event.getClick() == ClickType.NUMBER_KEY);
+
+        log(tick, "INV_CLICK", p,
+                "Priority: " + prio,
+                "Click: " + event.getClick(),
+                "Action: " + event.getAction(),
+                "Slot: " + slot + " Raw: " + raw,
+                hb,
+                hotbarLike,
+                "ClickedInv: " + clickedInvKind,
+                "Cancelled: " + event.isCancelled(),
+                "CurrentItem: " + fmtItem(event.getCurrentItem()),
+                "Cursor(event): " + fmtItem(event.getCursor()),
+                "Cursor(player): " + fmtItem(p.getItemOnCursor()),
+                "MainHand: " + fmtItem(p.getInventory().getItemInMainHand()),
+                "OffHand: " + fmtItem(p.getInventory().getItemInOffHand())
+        );
+    }
+
+    /* ==================== INVENTORY CREATIVE ==================== */
+
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
+    public void onInvCreativeLowest(InventoryCreativeEvent event) {
+        if (!ENABLED) return;
+        logInvCreative(event, "LOWEST");
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
+    public void onInvCreativeHighest(InventoryCreativeEvent event) {
+        if (!ENABLED) return;
+        logInvCreative(event, "HIGHEST");
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = false)
+    public void onInvCreativeMonitor(InventoryCreativeEvent event) {
+        if (!ENABLED) return;
+        logInvCreative(event, "MONITOR");
+    }
+
+    private void logInvCreative(InventoryCreativeEvent event, String prio) {
+        if (!(event.getWhoClicked() instanceof Player p)) return;
+        int tick = Bukkit.getCurrentTick();
+
+        int raw = event.getRawSlot();
+        int slot = event.getSlot();
+
+        log(tick, "INV_CREATIVE", p,
+                "Priority: " + prio,
+                "Click: " + event.getClick(),
+                "Action: " + event.getAction(),
+                "Slot: " + slot + " Raw: " + raw,
+                "Cancelled: " + event.isCancelled(),
+                "CurrentItem: " + fmtItem(event.getCurrentItem()),
+                "Cursor(event): " + fmtItem(event.getCursor()),
+                "Cursor(player): " + fmtItem(p.getItemOnCursor()),
+                "MainHand: " + fmtItem(p.getInventory().getItemInMainHand()),
+                "OffHand: " + fmtItem(p.getInventory().getItemInOffHand())
+        );
+    }
+
+    /* ==================== COMMON LOG ==================== */
+
+    private void log(int tick, String name, Player p, String... details) {
+        StringBuilder sb = new StringBuilder(256);
+        sb.append(PREFIX).append("§6[Tick ").append(tick).append("]§f ");
+        sb.append("§b").append(name).append("§f");
+        sb.append("\n  §7→ §fPlayer: ").append(p.getName());
+        sb.append("\n  §7→ §fGameMode: ").append(p.getGameMode());
+
+        // Open view snapshot (this is still valuable even if CRAFTING == E)
+        // Because TOP inventory type/title will differ for chests/custom GUIs.
+        InventoryView view = p.getOpenInventory();
+        Inventory top = view != null ? view.getTopInventory() : null;
+        Inventory bottom = view != null ? view.getBottomInventory() : null;
+
+        String topType = (top != null ? top.getType().name() : "null");
+        String bottomType = (bottom != null ? bottom.getType().name() : "null");
+        String title = (view != null ? view.getTitle() : "null");
+
+        sb.append("\n  §7→ §fViewTop: ").append(topType);
+        sb.append("\n  §7→ §fViewBottom: ").append(bottomType);
+        sb.append("\n  §7→ §fViewTitle: ").append(title);
+
+        for (String d : details) {
+            if (d != null && !d.isEmpty()) {
+                sb.append("\n  §7→ §f").append(d);
             }
         }
 
         Bukkit.getConsoleSender().sendMessage(sb.toString());
     }
 
-    /* ==================== CONTROL ==================== */
+    private String fmtItem(ItemStack item) {
+        if (item == null) return "null";
+        if (item.getType().isAir()) return "AIR";
 
-    /**
-     * Enable/disable debugging via command
-     * Usage: /gz debug on|off
-     */
-    public static void setEnabled(boolean enabled) {
-        // TODO: Implement if needed
+        ItemType gz = Core.itemRegistry.getType(item);
+        String gzId = (gz != null ? gz.id : "vanilla");
+
+        // Include amount + material + gzId
+        return item.getType() + "x" + item.getAmount() + " (" + gzId + ")";
     }
 }

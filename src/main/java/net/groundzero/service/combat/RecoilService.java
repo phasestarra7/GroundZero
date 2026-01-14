@@ -1,11 +1,13 @@
 package net.groundzero.service.combat;
 
+import io.papermc.paper.entity.TeleportFlag;
 import net.groundzero.app.Core;
 import net.groundzero.service.GameService;
 import net.groundzero.service.tick.TickBus;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
+import org.bukkit.event.player.PlayerTeleportEvent;
 
 import java.util.Iterator;
 import java.util.Map;
@@ -102,10 +104,7 @@ public final class RecoilService implements TickBus.Tickable, GameService {
         double actualPitch = -recoilPitch;
 
         // 1. Apply immediate kick
-        Location loc = player.getLocation();
-        float newPitch = clampPitch(loc.getPitch() + (float) actualPitch);
-        float newYaw = loc.getYaw() + (float) actualYaw;
-        player.setRotation(newYaw, newPitch);
+        applyRelativeRotation(player, actualYaw, actualPitch);
 
         // 2. Schedule gradual recovery
         if (recoveryTicks <= 0) return;
@@ -130,6 +129,33 @@ public final class RecoilService implements TickBus.Tickable, GameService {
         }
     }
 
+    private static void applyRelativeRotation(Player player, double yawDelta, double pitchDelta) {
+        if (player == null || !player.isOnline()) return;
+        if (yawDelta == 0.0 && pitchDelta == 0.0) return;
+
+        Location base = player.getLocation();
+
+        float yaw = base.getYaw() + (float) yawDelta;
+        float pitch = clampPitch(base.getPitch() + (float) pitchDelta);
+
+        Location target = new Location(
+                base.getWorld(),
+                base.getX(), base.getY(), base.getZ(),
+                yaw, pitch
+        );
+
+        // Also keep velocity so "teleporting to same place" doesn't kill movement feel.
+        player.teleport(
+                target,
+                PlayerTeleportEvent.TeleportCause.PLUGIN,
+                TeleportFlag.Relative.X,
+                TeleportFlag.Relative.Y,
+                TeleportFlag.Relative.Z,
+                TeleportFlag.Relative.YAW,
+                TeleportFlag.Relative.PITCH
+        );
+    }
+
     /* ===================== Tick Processing ===================== */
 
     @Override
@@ -151,10 +177,7 @@ public final class RecoilService implements TickBus.Tickable, GameService {
                 Player player = Bukkit.getPlayer(playerId);
                 if (player != null && player.isOnline()) {
                     // Apply accumulated recovery in single setRotation call
-                    Location current = player.getLocation();
-                    float recoveredPitch = clampPitch(current.getPitch() + (float) delta.pitch);
-                    float recoveredYaw = current.getYaw() + (float) delta.yaw;
-                    player.setRotation(recoveredYaw, recoveredPitch);
+                    applyRelativeRotation(player, delta.yaw, delta.pitch);
                 }
             }
 
@@ -170,7 +193,7 @@ public final class RecoilService implements TickBus.Tickable, GameService {
 
     /* ===================== Internal ===================== */
 
-    private float clampPitch(float pitch) {
+    private static float clampPitch(float pitch) {
         return Math.max(-90f, Math.min(90f, pitch));
     }
 

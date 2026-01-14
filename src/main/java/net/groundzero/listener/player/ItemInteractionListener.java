@@ -1,9 +1,11 @@
 package net.groundzero.listener.player;
 
+import com.destroystokyo.paper.event.server.ServerTickEndEvent;
 import net.groundzero.app.Core;
 import net.groundzero.item.ItemType;
 import net.groundzero.item.handler.ItemHandler;
 import net.groundzero.listener.BaseListener;
+import org.bukkit.Bukkit;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -11,13 +13,19 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.inventory.ClickType;
+import org.bukkit.event.inventory.InventoryAction;
+import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryCreativeEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -37,6 +45,11 @@ import java.util.UUID;
  * - LEFT_CLICK_BLOCK: Process immediately (accurate)
  * - LEFT_CLICK_AIR: Check DROP flag first (filter fake events)
  * - RIGHT_CLICK_*: Process immediately (accurate)
+ *
+ * IMPORTANT : there is a known packet-level paper bug that dropping item triggers left_click_air
+ * We are using ServerTickEndEvent as a heuristic, so if multiple inputs are in a single tick, we can't fix it
+ * Also, the way "dropping item" acts in SURVIVAL mode and CREATIVE mode is different
+ * So we just ignore CREATIVE mode's bug; it doesn't affect normal gameplay
  */
 public final class ItemInteractionListener extends BaseListener implements Listener {
 
@@ -46,6 +59,31 @@ public final class ItemInteractionListener extends BaseListener implements Liste
      */
     private final Set<UUID> recentDrop = new HashSet<>();
 
+    // Defer LEFT_CLICK_AIR to tick end so we can detect "inventory Q-drop" where DROP happens AFTER Interact
+    private final Map<UUID, PendingLeftClickAir> pendingLeftClickAir = new HashMap<>();
+
+    // Stores deferred LEFT_CLICK_AIR context until ServerTickEndEvent
+    private static final class PendingLeftClickAir {
+        final ItemHandler handler;
+        final ItemType type;
+        final ItemStack itemSnapshot;
+
+        PendingLeftClickAir(ItemHandler handler, ItemType type, ItemStack itemSnapshot) {
+            this.handler = handler;
+            this.type = type;
+            this.itemSnapshot = itemSnapshot;
+        }
+    }
+
+    // Marks a player as "dropped this tick window" and schedules cleanup
+    private void markRecentDrop(Player player) {
+        UUID id = player.getUniqueId();
+        recentDrop.add(id);
+
+        // Cleanup after 2 ticks (safety margin)
+        Core.schedulers.runLater(() -> recentDrop.remove(id), 2L);
+    }
+
     /* ==================== DROP: FLAG SETTER ==================== */
 
     /**
@@ -54,12 +92,51 @@ public final class ItemInteractionListener extends BaseListener implements Liste
      */
     @EventHandler(priority = EventPriority.LOWEST)
     public void onDrop(PlayerDropItemEvent event) {
-        UUID id = event.getPlayer().getUniqueId();
+        markRecentDrop(event.getPlayer());
+    }
 
-        recentDrop.add(id);
+    // Inventory Q / Ctrl+Q drops happen via InventoryClickEvent (and may occur after PlayerInteractEvent)
+    @EventHandler(priority = EventPriority.LOWEST)
+    public void onInventoryDropClick(InventoryClickEvent event) {
+        if (!(event.getWhoClicked() instanceof Player player)) return;
+        if (!Core.session.state().isIngame()) return;
 
-        // Cleanup after 2 ticks (safety margin)
-        Core.schedulers.runLater(() -> recentDrop.remove(id), 2L);
+        ClickType click = event.getClick();
+        InventoryAction action = event.getAction();
+
+        boolean isDrop =
+                click == ClickType.DROP ||
+                        click == ClickType.CONTROL_DROP ||
+                        action == InventoryAction.DROP_ONE_SLOT ||
+                        action == InventoryAction.DROP_ALL_SLOT ||
+                        action == InventoryAction.DROP_ONE_CURSOR ||
+                        action == InventoryAction.DROP_ALL_CURSOR;
+
+        if (isDrop) {
+            markRecentDrop(player);
+        }
+    }
+
+    // Creative inventory has its own event; still mark drops here to be safe
+    @EventHandler(priority = EventPriority.LOWEST)
+    public void onCreativeDropClick(InventoryCreativeEvent event) {
+        if (!(event.getWhoClicked() instanceof Player player)) return;
+        if (!Core.session.state().isIngame()) return;
+
+        ClickType click = event.getClick();
+        InventoryAction action = event.getAction();
+
+        boolean isDrop =
+                click == ClickType.DROP ||
+                        click == ClickType.CONTROL_DROP ||
+                        action == InventoryAction.DROP_ONE_SLOT ||
+                        action == InventoryAction.DROP_ALL_SLOT ||
+                        action == InventoryAction.DROP_ONE_CURSOR ||
+                        action == InventoryAction.DROP_ALL_CURSOR;
+
+        if (isDrop) {
+            markRecentDrop(player);
+        }
     }
 
     /* ==================== INTERACT: MAIN HANDLER ==================== */
@@ -71,6 +148,10 @@ public final class ItemInteractionListener extends BaseListener implements Liste
     @EventHandler(priority = EventPriority.NORMAL)
     public void onInteract(PlayerInteractEvent event) {
         Player player = event.getPlayer();
+
+        // Filter off-hand duplicate calls (1.9+)
+        if (event.getHand() != EquipmentSlot.HAND) return;
+
         ItemStack item = event.getItem();
         Action action = event.getAction();
 
@@ -109,7 +190,8 @@ public final class ItemInteractionListener extends BaseListener implements Liste
                 return; // Q key in air, ignore
             }
 
-            handled = handler.onLeftClick(player, item);
+            // Defer to tick end: inventory Q-drop can set DROP flag AFTER this event
+            pendingLeftClickAir.put(id, new PendingLeftClickAir(handler, type, item.clone()));
 
             // Only cancel vanilla if item has left-click functionality
             if (handled && type.hasLeftClickAction()) {
@@ -127,6 +209,30 @@ public final class ItemInteractionListener extends BaseListener implements Liste
                 event.setCancelled(true);
             }
         }
+    }
+
+    // Finalize deferred LEFT_CLICK_AIR at the end of the same server tick
+    @EventHandler
+    public void onTickEnd(ServerTickEndEvent event) {
+        if (pendingLeftClickAir.isEmpty()) return;
+
+        for (Map.Entry<UUID, PendingLeftClickAir> entry : pendingLeftClickAir.entrySet()) {
+            UUID id = entry.getKey();
+
+            // If any kind of drop happened in the same tick window, treat LEFT_CLICK_AIR as fake
+            if (recentDrop.contains(id)) {
+                continue;
+            }
+
+            Player player = Bukkit.getPlayer(id);
+            if (player == null || !player.isOnline()) continue;
+            if (!Core.session.state().isIngame()) continue;
+
+            PendingLeftClickAir pending = entry.getValue();
+            pending.handler.onLeftClick(player, pending.itemSnapshot);
+        }
+
+        pendingLeftClickAir.clear();
     }
 
     /* ==================== ENTITY ATTACK: DIRECT HANDLER ==================== */
